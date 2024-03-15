@@ -66,18 +66,6 @@ import pandas as pd
 UnBias='1D'
 #UnBias='2D'
 
-path = "/home/julie/stage2/notebook/"
-
-
-#chemin du dossier contenant les données
-path = '/home/julie/stage2/data/CCD_test/'
-path = '/home/julie/Téléchargements/CCD2-20240307T134109Z-002/CCD2/'
-filelist = os.listdir(path) #liste des fichiers sur mon ordi
-
-
-
-
-
 
 def merge_data(doss, refNames) -> pd.DataFrame:
     """
@@ -189,17 +177,31 @@ def SingleImageIR(actfile,gains=None):
         return spf
 
 
-def process(flat0, flat1):
-    
+def process(flat0, flat1) -> pd.DataFrame() : 
+    """
+    Process the data
+        - Calculate mean value for each HDU (16) for the two flat
+        - Calculate variance of the difference of the 2 flat divided by 2 (mean to estimate the ptc)
+
+    Parameters
+    ----------
+    flat0/flat1 : pd.dataframe
+        .fits file of a CCD for a flat (0 or 1)
+        
+    Returns
+    -------
+    parameters : pd.dataframe
+        output : 'raft','sensor','flat0','flat1','ampli',
+                                       'mean','var'
+
+    """
     file_name_flat0 =flat0.split('/')[-1]
     file_name_flat1 =flat1.split('/')[-1]
     raft = file_name_flat0.split('_')[4]
     sensor = file_name_flat0.split('_')[5].split('.')[0]
     file_list = [flat0, flat1]
-    print(file_list)
-    FileUnBias=bot.InFile(dirall=file_list[:],Slow=False,verbose=False,
-                          Bias=UnBias)
-    print(FileUnBias.all_file)
+    FileUnBias=bot.InFile(dirall=file_list[:],Slow=False,
+                          verbose=False,Bias=UnBias)
     flat0_overscanned=SingleImageIR(FileUnBias.all_file[0])
     flat1_overscanned=SingleImageIR(FileUnBias.all_file[1])
     
@@ -230,13 +232,13 @@ def process(flat0, flat1):
 
 
 def fit_lin (var,mean) :
-
     mean = mean.to_numpy()
     var = var.to_numpy()
     diff_var_=[]
     mean_=[]   
+    mean_max = 5000 #max value for fit (we want to make the fit for low illuminations)
     for i in range (len(mean)):
-        if  mean[i] < 5000:
+        if  mean[i] < mean_max :
             diff_var_.append(var[i])
             mean_.append(mean[i])
     a, b, r, p_value, std_err = linregress(mean_, diff_var_)
@@ -244,32 +246,37 @@ def fit_lin (var,mean) :
 
 
 def fit_quadra (var,mean) :
+    
     mean = mean.to_numpy()
     var = var.to_numpy()
+    #max value for fit (we want to make the fit for low illuminations)
     mean_max = 60000
     x_data=[]
     y_data=[]
+    order = 2
     for i in range (len(mean)):
         if  mean[i] < mean_max:
             y_data.append(var[i])
             x_data.append(mean[i])
-    y_params = np.polyfit(x_data, y_data, 2)  #équation de degré 2
+    y_params = np.polyfit(x_data, y_data, order)  #equation of order 2
     return y_params
 
 def fit (tab) -> pd.DataFrame() : 
     """
-    Make a quadratic fit of the data and calculate the turnoff
+    Make a quadratic fit of the data and calculate the turnoff ang gain
+        - turnoff : mean illumination value where difference in illumnitation is maximum
+        - gain : K = 1/b (b parameter of the fit)
 
     Parameters
     ----------
     tab : pd.dataframe
-        Mean and variance for each ADU/run/raft/sensor 
+        Mean and variance for each raft/sensor/HDU
         
     Returns
     -------
     parameters : pd.dataframe
         output : 'raft','sensor','ampli','a','b','c','gain','turnoff'
-                                              
+          (a,b,c are the parameters of a quadratic fit ax²+bx+c)                                    
 
     """
     c = []
@@ -296,24 +303,23 @@ def fit (tab) -> pd.DataFrame() :
                               y_params[0],y_params[1],y_params[2],1/y_params[1],turnoff))
             
     parameters = pd.DataFrame(c ,columns=['raft','sensor','ampli',
-                                          'a','b','c','gain','turnoff'])
-                                          
+                                          'a','b','c','gain','turnoff'])                                  
     return parameters
 
 
 
 def plot_ampli (data, parameters) -> plt.figure :
     """
-    Plot the ptc for each run/raft/sensor for the 16 HDU
+    Plot the ptc for each raft/sensor for the 16 HDU
 
     Parameters
     ----------
     file_name : 
     data : pd.dataframe
-        Mean and variance for each ADU/run/raft/sensor 
+        Mean and variance for each raft/sensor/HDU
         
     parameters : pd.dataframe
-        parameters of fit + turnoff
+        parameters of fit + turnoff + gain
         
     Returns
     -------
