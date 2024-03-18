@@ -47,7 +47,6 @@ def get_flat1(data, prefix='flat1'):
         # increase to 1 to get flat1
         flatnum += 1
         fis = glob.glob('{}/*flat1_{}'.format(main_dir, str(flatnum).zfill(3)))
-        print('io', vv, fis)
         r.append((vv, fis[0]))
 
     return r
@@ -106,6 +105,7 @@ def list_df(theDir, prefix):
     df = pd.DataFrame(fis, columns=[colName])
     df['raft_sensor'] = df[colName].map(lambda x: strip(x))
     df[colName] = df[colName].str.split('/').str.get(-1)
+    df['dataDir_{}'.format(prefix)] = theDir
 
     return df
 
@@ -153,7 +153,7 @@ def get_runList(dataDir):
 
     runList = list(map(lambda elem: elem.split('/')[-1], runs))
 
-    runList = list(map(int, runList))
+    #runList = list(map(int, runList))
 
     return runList
 
@@ -178,15 +178,9 @@ def get_flat_pairs(dataDir, runNum, prefix):
 
     """
 
-    print('looking for', runNum)
-
     fis_flat0 = glob.glob('{}/{}/{}*flat0_*'.format(dataDir, runNum, prefix))
 
-    print(fis_flat0)
-
     fis_flat = get_flat1(fis_flat0)
-
-    print(fis_flat)
 
     df = assemble_flats(fis_flat)
 

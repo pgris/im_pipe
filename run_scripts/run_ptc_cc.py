@@ -65,8 +65,8 @@ def process_ptc(data) -> pd.DataFrame:
 
     resa = pd.DataFrame()
     for i, row in data.iterrows():
-        flat0 = row['full_path_flat0']
-        flat1 = row['full_path_flat1']
+        flat0 = '{}/{}'.format(row['dataDir_flat0'],row['file_flat0'])
+        flat1 = '{}/{}'.format(row['dataDir_flat1'],row['file_flat1'])
         res = process(flat0, flat1)
         resa = pd.concat([res, resa]).reset_index(drop=True)
 
@@ -78,9 +78,9 @@ parser = OptionParser(description='Script to estimate the PTC on FP images')
 parser.add_option('--dataDir', type=str,
                   default='/sps/lsst/groups/FocalPlane/SLAC/run5',
                   help='Path to data [%default]')
-parser.add_option('--run_num', type=int,
-                  default=13144,
-                  help='run number[%default]')
+parser.add_option('--run_num', type=str,
+                  default='13144',
+                  help='list of runs to process [%default]')
 parser.add_option('--nproc', type=int,
                   default=8,
                   help='nproc for multiprocessing [%default]')
@@ -91,20 +91,21 @@ parser.add_option('--outName', type=str,
                   default="ptc_test.hdf5",
                   help='output file name[%default]')
 parser.add_option('--prefix', type=str,
-                  default='flat_ND,flat_Empty',
+                  default='flat_ND,flat_empty',
                   help='prefix for Flat files [%default]')
 
 opts, args = parser.parse_args()
 
 dataDir = opts.dataDir
 run_num = opts.run_num.split(',')
+#run_num = list(map(int, run_num))
 nproc = opts.nproc
 outDir = opts.outDir
 outName = opts.outName
-prefix = opts.prefic.split(',')
+prefix = opts.prefix.split(',')
 
 # get the runList
-runList = get_runList(dataDir)
+runList = get_runList('{}/*'.format(dataDir))
 
 runs = list(set(runList).intersection(run_num))
 
@@ -120,13 +121,18 @@ data = pd.DataFrame()
 for run in runs:
     for pref in prefix:
         dd = get_flat_pairs(dataDir, run, pref)
+        dd['runNum'] = run
+        dd['prefix'] = pref
         data = pd.concat((data, dd))
+
+idx = data['raft_sensor'].str.contains('SW')
+data = data[~idx]
 
 # processing of the data
 resa = pd.DataFrame()
 
 params = {}
-params['data'] = data
+params['data'] = data[:100]
 vv = list(range(len(data)))
 resa = multiproc(vv, params, process_ptc_multi, nproc)
 
