@@ -8,7 +8,7 @@ Created on Monday Mar  18 14:35:25 2024
 import pandas as pd
 from ptc import process
 from utils import multiproc
-from io_tools import checkDir, get_runList, get_flat_pair
+from io_tools import checkDir, get_runList, get_flat_pairs
 from optparse import OptionParser
 import numpy as np
 import sys
@@ -119,7 +119,7 @@ checkDir(outDir)
 data = pd.DataFrame()
 for run in runs:
     for pref in prefix:
-        dd = get_flat_pair(dataDir, run, pref)
+        dd = get_flat_pairs(dataDir, run, pref)
         data = pd.concat((data, dd))
 
 # processing of the data
