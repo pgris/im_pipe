@@ -133,7 +133,7 @@ data = data[~idx]
 resa = pd.DataFrame()
 
 params = {}
-params['data'] = data[:100]
+params['data'] = data
 vv = list(range(len(data)))
 resa = multiproc(vv, params, process_ptc_multi, nproc)
 
