@@ -145,7 +145,7 @@ class BatchIt:
         cmd = 'python {}'.format(thescript)
 
         for key, vals in params.items():
-            cmd += ' --{} {}'.format(key, vals)
+            cmd += ' --{}={}'.format(key, vals)
 
         self.script.write(cmd+'\n')
 
