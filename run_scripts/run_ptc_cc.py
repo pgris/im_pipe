@@ -65,8 +65,8 @@ def process_ptc(data) -> pd.DataFrame:
 
     resa = pd.DataFrame()
     for i, row in data.iterrows():
-        flat0 = '{}/{}'.format(row['dataDir_flat0'],row['file_flat0'])
-        flat1 = '{}/{}'.format(row['dataDir_flat1'],row['file_flat1'])
+        flat0 = '{}/{}'.format(row['dataDir_flat0'], row['file_flat0'])
+        flat1 = '{}/{}'.format(row['dataDir_flat1'], row['file_flat1'])
         res = process(flat0, flat1)
         resa = pd.concat([res, resa]).reset_index(drop=True)
 
@@ -112,6 +112,7 @@ runs = list(set(runList).intersection(run_num))
 if not runs:
     print('Run(s) not found', run_num)
     sys.exit(0)
+runs = runList
 
 # create outdir if it does not exist
 checkDir(outDir)
