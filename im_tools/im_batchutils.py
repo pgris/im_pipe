@@ -18,7 +18,7 @@ class BatchIt:
     def __init__(self, logDir='logs', scriptDir='scripts',
                  processName='test_batch',
                  account='lsst', L='sps', time='20:00:00', mem='50G', n=8,
-                 conda_activate=True):
+                 conda_activate=True, setup_activate=True):
         """
         general class to use the batch system
 
@@ -61,6 +61,8 @@ class BatchIt:
         self.options.append('--acctg-freq=task=15')
         self.options.append('--partition=lsst,htc')
         self.conda_activate = conda_activate
+        self.setup_activate = setup_activate
+
         # create output dirs if necessary
         self.checkDirs(logDir, scriptDir)
 
@@ -128,6 +130,9 @@ class BatchIt:
             src = 'source {}'.format(cond)
             script.write('{}'.format(src)+'\n')
             script.write('conda activate myenv'+'\n')
+        if self.setup_activate:
+            src = 'source setup.sh'
+            script.write('{}'.format(src)+'\n')
         script.write(" export MKL_NUM_THREADS=1 \n")
         script.write(" export NUMEXPR_NUM_THREADS=1 \n")
         script.write(" export OMP_NUM_THREADS=1 \n")
