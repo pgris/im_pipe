@@ -65,7 +65,7 @@ for run in runs:
     for pref in prefix:
         processName = 'ptc_{}_{}'.format(run,pref)
         print('procName',processName)
-        batch = BatchIt(processName=processName,conda_activate=False,setup_activate=True)
+        batch = BatchIt(processName=processName,time='40:00:00',conda_activate=False,setup_activate=True)
         
         params['outDir'] = '{}/{}'.format(outDir,run)
         params['outName'] = 'ptc_{}_{}.hdf5'.format(run,pref)
