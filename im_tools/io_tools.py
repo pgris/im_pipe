@@ -52,7 +52,7 @@ def get_flat1(data, prefix='flat1'):
     return r
 
 
-def assemble_flats(llist):
+def assemble_flats(llist,runNum):
     """
     Function to make pairs of (flat0, flat1) files
 
@@ -60,6 +60,8 @@ def assemble_flats(llist):
     ----------
     llist : list(str)
         List of files.
+    runNum: int
+      run number
 
     Returns
     -------
@@ -70,20 +72,20 @@ def assemble_flats(llist):
 
     df_tot = pd.DataFrame()
     for ll in llist:
-        bb_flat0 = list_df(ll[0], 'flat0')
-        bb_flat1 = list_df(ll[1], 'flat1')
+        bb_flat0 = list_df(ll[0], 'flat0',runNum)
+        bb_flat1 = list_df(ll[1], 'flat1',runNum)
 
         # print(bb_flat0)
 
-        res = bb_flat0.merge(bb_flat1, left_on=['raft_sensor'], right_on=[
-                             'raft_sensor'], suffixes=['', ''])
+        res = bb_flat0.merge(bb_flat1, left_on=['raft_sensor','runNum'], right_on=[
+                             'raft_sensor','runNum'], suffixes=['', ''])
 
         df_tot = pd.concat((df_tot, res))
 
     return df_tot
 
 
-def list_df(theDir, prefix):
+def list_df(theDir, prefix,runNum):
     """
     Function to make list and put it in dataFrame
 
@@ -93,6 +95,8 @@ def list_df(theDir, prefix):
         Data dir.
     prefix : str
         Prefix for the search.
+    runNum: int
+        Run number
 
     Returns
     -------
@@ -106,6 +110,7 @@ def list_df(theDir, prefix):
     df['raft_sensor'] = df[colName].map(lambda x: strip(x))
     df[colName] = df[colName].str.split('/').str.get(-1)
     df['dataDir_{}'.format(prefix)] = theDir
+    df['runNum'] = runNum
 
     return df
 
@@ -182,6 +187,6 @@ def get_flat_pairs(dataDir, runNum, prefix):
 
     fis_flat = get_flat1(fis_flat0)
 
-    df = assemble_flats(fis_flat)
+    df = assemble_flats(fis_flat,runNum)
 
     return df
