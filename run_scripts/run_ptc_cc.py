@@ -112,7 +112,6 @@ runs = list(set(runList).intersection(run_num))
 if not runs:
     print('Run(s) not found', run_num)
     sys.exit(0)
-runs = runList
 
 # create outdir if it does not exist
 checkDir(outDir)
