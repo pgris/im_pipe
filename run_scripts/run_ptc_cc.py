@@ -68,6 +68,7 @@ def process_ptc(data) -> pd.DataFrame:
         flat0 = '{}/{}'.format(row['dataDir_flat0'], row['file_flat0'])
         flat1 = '{}/{}'.format(row['dataDir_flat1'], row['file_flat1'])
         res = process(flat0, flat1)
+        res['runNum'] = row['runNum']
         resa = pd.concat([res, resa]).reset_index(drop=True)
 
     return resa
@@ -124,6 +125,10 @@ for run in runs:
         dd['runNum'] = run
         dd['prefix'] = pref
         data = pd.concat((data, dd))
+
+if len(data)==0:
+    print('Data not found for run', run_num)
+    sys.exit(0)
 
 idx = data['raft_sensor'].str.contains('SW')
 data = data[~idx]

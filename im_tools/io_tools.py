@@ -52,7 +52,7 @@ def get_flat1(data, prefix='flat1'):
     return r
 
 
-def assemble_flats(llist,runNum):
+def assemble_flats(llist):
     """
     Function to make pairs of (flat0, flat1) files
 
@@ -60,8 +60,6 @@ def assemble_flats(llist,runNum):
     ----------
     llist : list(str)
         List of files.
-    runNum: int
-      run number
 
     Returns
     -------
@@ -72,20 +70,20 @@ def assemble_flats(llist,runNum):
 
     df_tot = pd.DataFrame()
     for ll in llist:
-        bb_flat0 = list_df(ll[0], 'flat0',runNum)
-        bb_flat1 = list_df(ll[1], 'flat1',runNum)
+        bb_flat0 = list_df(ll[0], 'flat0')
+        bb_flat1 = list_df(ll[1], 'flat1')
 
         # print(bb_flat0)
 
-        res = bb_flat0.merge(bb_flat1, left_on=['raft_sensor','runNum'], right_on=[
-                             'raft_sensor','runNum'], suffixes=['', ''])
+        res = bb_flat0.merge(bb_flat1, left_on=['raft_sensor'], right_on=[
+                             'raft_sensor'], suffixes=['', ''])
 
         df_tot = pd.concat((df_tot, res))
 
     return df_tot
 
 
-def list_df(theDir, prefix,runNum):
+def list_df(theDir, prefix):
     """
     Function to make list and put it in dataFrame
 
@@ -95,8 +93,6 @@ def list_df(theDir, prefix,runNum):
         Data dir.
     prefix : str
         Prefix for the search.
-    runNum: int
-        Run number
 
     Returns
     -------
@@ -110,7 +106,6 @@ def list_df(theDir, prefix,runNum):
     df['raft_sensor'] = df[colName].map(lambda x: strip(x))
     df[colName] = df[colName].str.split('/').str.get(-1)
     df['dataDir_{}'.format(prefix)] = theDir
-    df['runNum'] = runNum
 
     return df
 
@@ -183,10 +178,12 @@ def get_flat_pairs(dataDir, runNum, prefix):
 
     """
 
-    fis_flat0 = glob.glob('{}/{}/{}*flat0_*'.format(dataDir, runNum, prefix))
+    search_path = '{}/{}/{}*flat0_*'.format(dataDir, runNum, prefix)
+
+    fis_flat0 = glob.glob(search_path)
 
     fis_flat = get_flat1(fis_flat0)
 
-    df = assemble_flats(fis_flat,runNum)
+    df = assemble_flats(fis_flat)
 
     return df
