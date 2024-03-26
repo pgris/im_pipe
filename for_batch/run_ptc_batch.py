@@ -35,14 +35,16 @@ dataDir = opts.dataDir
 nproc = opts.nproc
 outDir = opts.outDir
 prefix = opts.prefix.split(',')
-run_num = opts.run_num.split(',')
+run_num = opts.run_num
 
 # get the runList
 runList = get_runList('{}/*'.format(dataDir))
 
 print(runList)
 runs = []
+print('allo',run_num)
 if run_num != 'all':
+    run_num = run_num.split(',')
     runs = list(set(runList).intersection(run_num))
 
     if not runs:
