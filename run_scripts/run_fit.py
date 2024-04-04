@@ -14,16 +14,10 @@ Created on Fri Mar  8 12:35:25 2024
 @author: philippe.gris@clermont.in2p3.fr
 """
 import pandas as pd
-from ptc import merge_data, process, fit, plot_ampli
-from utils import multiproc
-from io_tools import checkDir
 from optparse import OptionParser
 import numpy as np
-import time
-import matplotlib.pyplot as plt
-from fit import lecture_ptc
-from num_run import GetRunNumber
-
+from num import GetRunNumber, DoFit
+from ptc import process, plot_ampli
 
 def process_ptc_multi(toproc, params, j=0, output_q=None):
     """
@@ -89,67 +83,61 @@ parser = OptionParser(description='Script to estimate the gain from the PTC on F
 
 
 
+parser.add_option('--dataPtcDir', type=str,
+                  default='../ptc_resu/',
+                  help='Path to data [%default]')
 
-path = "/home/julie/fm_study/im_pipe/input"
-run = GetRunNumber(path)
+opts, args = parser.parse_args()
+dataPtcDir = opts.dataPtcDir
+runs = GetRunNumber(dataPtcDir)
 
 
-name_empty = '../input/ptc_13018_flat_empty.hdf5'
-name_ND = '../input/ptc_13018_flat_ND.hdf5'
+parser.add_option('--run_num', type=str,
+                  default=runs['run'].unique(),
+                  help='list of runs to process [%default]')
 
-
-parser.add_option('--run', type=str,
-                  default=run,
-                  help='[%default]')
-parser.add_option('--flat_empty_ptc', type=str,
-                  default=name_empty,
-                  help='[%default]')
-parser.add_option('--flat_ND_ptc', type=str,
-                  default=name_ND,
-                  help='[%default]')
 parser.add_option('--outDir', type=str,
                   default="../fit_resu",
                   help='output dir for the processed data[%default]')
+
 parser.add_option('--outName', type=str,
-                  default="fit_test.hdf5",
+                  default="fit_resu_",
                   help='output file name[%default]')
 
+
+parser.add_option('--prefix', type=str,
+                  default=runs['filter'].unique(),
+                  help='prefix for Flat files [%default]')
+
 opts, args = parser.parse_args()
-
-
-flat_empty_ptc = opts.flat_empty_ptc
-flat_ND_ptc = opts.flat_ND_ptc
+run_num = opts.run_num
 outDir = opts.outDir
 outName = opts.outName
+prefix = opts.prefix
+ 
 
-checkDir(outDir)
+for run in run_num : 
+    print(run) 
+    dd = list(runs['FileName'][runs['run']==run])
+    resu_fit = DoFit(dd, dataPtcDir, run)
+        
+    # save data
+    outPath = '{}/{}{}.hdf5'.format(outDir, outName, run)
+    resu_fit.to_hdf(outPath, key='ptc')
+  
 
-data_ptc= pd.concat([pd.read_hdf(flat_empty_ptc),pd.read_hdf(flat_ND_ptc)],axis=0)
+         
+# path_fit = "/home/julie/fm_study/im_pipe/fit_resu/"   
+# path_data = "/home/julie/fm_study/im_pipe/ptc_resu/" 
+# data1 = "ptc_13151_flat_ND.hdf5"
+# data2 = "ptc_13147_flat_empty.hdf5"
+# fit = "fit_resu_13073.hdf5"
 
-
-raft = data_ptc['raft'].unique()
-
-res_fit = lecture_ptc(data_ptc)
-
-
-outPath = '{}/{}'.format(outDir, outName)
-res_fit.to_hdf(outPath, key='ptc')
-
-
-#plot_ampli(data_ptc[data_ptc['raft']=='R12'], res_fit[res_fit['raft']=='R12'])
-
-
-# from datetime import date
-# def time (data):
-#     t = pd.DataFrame()
-#     t['time'] = data['flat0'].str.split('_').str.get(2)
-#     t['date'] = date.fromisoformat(t['time'])
-#     return t
-
-
-# t =time(a)
-
-
-
+# #data  = pd.concat((pd.read_hdf(path_data+data1),pd.read_hdf(path_data+data2)))
+# data = pd.read_hdf(path_data+data2)
+# fit = pd.read_hdf(path_fit+fit)
+# plot_ampli(data[data['raft']=='R22'], fit[fit['raft']=='R22'])
+    
+    
 
 
