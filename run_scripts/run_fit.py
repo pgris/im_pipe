@@ -126,18 +126,7 @@ for run in run_num :
     resu_fit.to_hdf(outPath, key='ptc')
   
 
-         
-# path_fit = "/home/julie/fm_study/im_pipe/fit_resu/"   
-# path_data = "/home/julie/fm_study/im_pipe/ptc_resu/" 
-# data1 = "ptc_13151_flat_ND.hdf5"
-# data2 = "ptc_13147_flat_empty.hdf5"
-# fit = "fit_resu_13073.hdf5"
 
-# #data  = pd.concat((pd.read_hdf(path_data+data1),pd.read_hdf(path_data+data2)))
-# data = pd.read_hdf(path_data+data2)
-# fit = pd.read_hdf(path_fit+fit)
-# plot_ampli(data[data['raft']=='R22'], fit[fit['raft']=='R22'])
-    
     
 
 
