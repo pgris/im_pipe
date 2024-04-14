@@ -207,6 +207,8 @@ def SingleImageIR(actfile,gains=None):
 #     return var, mean, varA, varB, varA,varB, covAB, vv
 
 
+
+
 def varianceCalculation (flat0, flat1, h):
     mean = np.mean((flat0+flat1)/2)
     
@@ -251,10 +253,16 @@ def process(flat0, flat1) -> pd.DataFrame() :
     Returns
     -------
     parameters : pd.dataframe
-        output : 'raft','sensor','flat0','flat1','ampli',
-                                       'mean','var'
+        output : ['raft','type','sensor','flat0','flat1','ampli',
+                  'mean','var', 'var0', 'var1','dvar0',
+                  'dvar1', 'std01', 'var(var)']
 
     """
+    ITL = ['R00', 'R01', 'R02', 'R03', 'R04', 'R10',
+           'R20', 'R40', 'R41', 'R42', 'R43', 'R44']
+    e2v = ['R11', 'R12', 'R13', 'R14', 'R21', 'R22', 'R23', 
+           'R24', 'R30', 'R31', 'R32', 'R33', 'R34']
+    
     file_name_flat0 =flat0.split('/')[-1]
     file_name_flat1 =flat1.split('/')[-1]
     raft = file_name_flat0.split('_')[4]
@@ -281,11 +289,17 @@ def process(flat0, flat1) -> pd.DataFrame() :
         var, mean, var0, var1,dvar0, dvar1, std01, vv= varianceCalculation(ampli_flat0,
                                                               ampli_flat1,
                                                               h=10**-6)
-        r.append((raft,sensor,file_name_flat0,file_name_flat1,p+1, 
+        
+        if raft in ITL : 
+            ccd = 'ITL'
+        else:
+            ccd = 'e2v'
+            
+        r.append((raft,ccd,sensor,file_name_flat0,file_name_flat1,p+1, 
                   mean, var/2, var0,var1,dvar0, dvar1,std01, vv))
         
     
-    res = pd.DataFrame(r ,columns=['raft','sensor','flat0','flat1','ampli',
+    res = pd.DataFrame(r ,columns=['raft','type','sensor','flat0','flat1','ampli',
                                    'mean','var', 'var0', 'var1','dvar0',
                                    'dvar1', 'std01', 'var(var)'])
     return res

@@ -21,6 +21,7 @@ import numpy as np
 from num import GetRunNumber, DoFit
 from ptc import process
 from visu_ptc import visualizePTC
+from io_tools import checkDir
 
 def process_ptc_multi(toproc, params, j=0, output_q=None):
     """
@@ -112,17 +113,26 @@ parser.add_option('--prefix', type=str,
                   default=runs['filter'].unique(),
                   help='prefix for Flat files [%default]')
 
+parser.add_option('--dirgain', type=str,
+                  default='../gain/',
+                  help='prefix for Flat files [%default]')
+
 opts, args = parser.parse_args()
 run_num = opts.run_num
 outDir = opts.outDir
 outName = opts.outName
 prefix = opts.prefix
- 
+dirgain = opts.dirgain
 gain = pd.DataFrame()
+
+
+checkDir(dirgain)
 
 raft = 'R22'
 sensor = 'S11'
 
+min_gain=[]
+max_gain=[]
 for run in run_num : 
     print(run) 
     dd = list(runs['FileName'][runs['run']==run])
@@ -140,55 +150,35 @@ for run in run_num :
     # save data
     outPath = '{}/{}{}.hdf5'.format(outDir, outName, run)
     resu_fit.to_hdf(outPath, key='ptc')
-    gain.to_hdf('../gain/gain.hdf5', key='gain')
+    gain.to_hdf(dirgain+'gain.hdf5', key='gain')
+    
+    
+    MoyGain = np.mean(g['gain'])
+    if MoyGain < 1.35 :
+        min_gain.append(gain['run'].unique())
+    else :
+        max_gain.append(gain['run'].unique())
+        
+
+
+# gain = pd.read_hdf('../gain/gain.hdf5')    
+# min_gain=[]
+# max_gain=[]
+# run_num = gain['run'].unique()
+# for run in run_num :   
+#     MoyGain = np.mean(g['gain'])
+#     if MoyGain < 1.35 :
+#         min_gain.append(gain['run'])
+#     else :
+#         max_gain.append(gain['run'])
+    
+
     
 
 
 
 
 
-
-
-#a mettre dans run_plot
-gg = gain['gain']
-rr = gain['run']    
-plt.scatter(rr, gg)
-
-
-path = '../fit_resu/'
-file = os.listdir(path)
-gain = pd.DataFrame()
-
-
-for f in file :
-    a = pd.read_hdf(path+f)
-    gain = gain = pd.concat([gain, a]).reset_index(drop=True)
-
-    
-# Générer des couleurs uniques pour chaque numéro d'ampli
-num_run = rr.unique()
-num_colors = len(num_run)
-colors = plt.cm.tab20(np.linspace(0, 1, num_colors))
-
-
-#scatter plot du gain par run
-# Parcourir chaque numéro d'ampli et tracer les points avec la couleur correspondante
-for i, num in enumerate(num_run):
-    print(num)
-    data = gain[gain["run"] == num]
-    plt.scatter(data["run"], data["gain"], label=num, c=[colors[i]])
-    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-#plt.yscale('log')
-plt.show()
-
-
-#hist du gain par run
-for i, num in enumerate(num_run):
-    data = gain[gain["run"] == num]
-    plt.hist(data["gain"], label=num, color=[colors[i]], bins =100, histtype='step')
-    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-plt.xlim((0.75,2))
-plt.show()
 
 
 

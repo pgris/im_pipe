@@ -7,8 +7,7 @@ Created on Wed Apr  3 09:38:13 2024
 """
 import os
 import pandas as pd
-from ptc import fit, plot_ampli
-
+from fit import fit
 
 def GetRunNumber (path):
     file = os.listdir(path)
@@ -19,15 +18,12 @@ def GetRunNumber (path):
 
 
 def DoFit (data, path, run):
-    print(len(data))
     if len(data)==1:
         file = pd.read_hdf(path+data[0])
     elif len(data)==2:
         file = pd.concat((pd.read_hdf(path+data[0]),pd.read_hdf(path+data[1])))
     else : 
         return
-    
-    print(file)
     resu_fit = fit(file, run)
-    return resu_fit
+    return resu_fit, file
 
