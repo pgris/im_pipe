@@ -12,6 +12,7 @@ from scipy.optimize import curve_fit
 from scipy.stats import linregress
 from scipy import interpolate
 from scipy.optimize import minimize_scalar
+import scipy.interpolate as spi
 
 
 
@@ -82,7 +83,7 @@ def fit (tab, run) -> pd.DataFrame() :
     c = []
     raft = tab['raft'].unique()
     sensor = tab['sensor'].unique()
-    
+    dd = pd.DataFrame()
     for r in raft:
         for s in sensor:
             for p in range(1,17):
@@ -92,16 +93,17 @@ def fit (tab, run) -> pd.DataFrame() :
                 if not list(idx):
                     continue
                 else:
+                    print(r, s, p)
                     mean = tab['mean'][idx].reset_index(drop=True)
                     var = tab['var'][idx].reset_index(drop=True)
                     a,b = fit_lin(var, mean)
 
                     y_param_qua, chisq_dof = fit_quadra(var, mean,b)
                     Qgain = 1/y_param_qua[1]
-                    ndata, y_param_lin = fit_lin_pr(mean, var)
+                    new_data, ndata, y_param_lin= fit_lin_pr(mean, var)
                     Lgain = 1/y_param_lin[0]
                     
-                    tt = turnoff (ndata, Lgain)
+                    tt = turnoff (pd.DataFrame({'mean':mean,'var':var}), Lgain)
 
                     #residue(y_params,a,b,mean, var, p)
                     
@@ -111,14 +113,21 @@ def fit (tab, run) -> pd.DataFrame() :
                               y_param_qua,Qgain,
                               y_param_lin, Lgain,
                               tt))
-            
+                    
+                    nd = add_col(ndata, r, s, p)
+                    dd = pd.concat((dd, nd))
     parameters = pd.DataFrame(c ,columns=['run','raft','type','sensor','ampli',
                                           'param_quadra', 'gain_quadra',
                                           'param_lin', 'gain_lin',
                                           'turnoff'])       
     
-    return parameters
+    return parameters, dd
 
+def add_col (df,r,s,p):
+    df['raft'] = r
+    df['sensor'] = s
+    df['ampli'] = p
+    return df
 
 def residue (param, a, b, x_data, y_data, ampli):
     
@@ -141,20 +150,20 @@ def residue (param, a, b, x_data, y_data, ampli):
 
 def turnoff (data, gain):
     inf = 50000
-    sup = 110000
+    sup = 100000
     idx = data[(data['mean'] >=inf) & (data['mean']<=sup)].index
     if not list(idx):
-        print('impossible de déterminer le turnoff')    
+        print('impossible de déterminer le turnoff')   
+        tt = 0
     else : 
         xx = data['mean'][idx]
         yy = data['var'][idx]
         
         
         #f = interpolate.interp1d(data['mean'], data['var'])
-        f = interpolate.interp1d(xx, yy)
-        x = np.linspace(60000,100000)
+        f = spi.interp1d(xx,yy,fill_value="extrapolate")
+        x = np.linspace(min(xx), max(xx))
         y = f(x)
-    
     
         vmax_idx = np.argmax(y)
         tt = x[vmax_idx]
@@ -167,145 +176,66 @@ def turnoff (data, gain):
     return tt
         
     
-# def fit_lin_pr (x, y):
-    
-#     #fait un fit par bin (valeur moyenne)
-#     data = pd.DataFrame({'mean':x, 'var':y})
-#     data = data.sort_values(by='mean').reset_index(drop=True)
-#     dd = data[data['mean']>0].reset_index(drop=True)
-
-   
-#     sigma = 100
-#     n = len(dd['mean'])
-#     bim=[]
-#     biv=[]
-#     m=[]
-#     for i in range (2,n-1,3):
-#         if dd['mean'][i] in m:
-#             continue
-#         else:
-#             inf = dd['mean'][i]
-#             sup = inf+3
-#             m=[]
-#             v=[]
-            
-#             #Regroupe des valeurs 
-#             for j in dd['mean']:
-#                if inf <= j <= sup:
-#                    m.append(j)
-#                    v.append(dd['var'][dd['mean']==j])
-                   
-                   
-#             #calcule la moyenne
-#             bim.append(np.median(m))
-#             biv.append(np.median(v))
-    
-    
-#     data = pd.DataFrame({'mean':bim, 'var':biv})   
- 
-#     n = len(data['mean'])  
-#     idx = []
-#     for j in range (0,n-1):
-#         if data['mean'][j] == False:
-#             continue
-#         else:
-#             print(data['mean'][0:j])
-#             popt, pcov = curve_fit(linear, data['mean'][0:j], data['var'][0:j])
-#             # print('diff= ', abs(linear(data['mean'][j+1], *popt)-data['mean'][j+1]) )
-#             # print('10 sig = ', 10*sigma)
-#             if abs(linear(data['mean'][j+1], *popt)-data['mean'][j+1]) > 10*sigma :
-#                 if abs(linear(data['mean'][j+2], *popt)-data['mean'][j+2]) < 1000000*sigma:
-#                     # print('diff2= ', abs(linear(data['mean'][j+2], *popt)-data['mean'][j+2]) )
-#                     #print('sig2 = ', 10000*sigma)
-#                     idx.append(j+1) #Index des données à supprimer
-#                     sigma = pcov[0][0]
-#                     data = data.drop(idx).copy()
-#                 else:
-#                     break
-#             else:
-#                 sigma = pcov[0][0]
-            
-            
-#     data = data.drop(idx).copy()
-
-#     popt, pcov = curve_fit(linear, data['mean'][0:j], data['var'][0:j])
-
 def fit_lin_pr (x, y):
     
     #fait un fit par bin (valeur moyenne)
     data = pd.DataFrame({'mean':x, 'var':y})
     data = data.sort_values(by='mean').reset_index(drop=True)
+    
+    #Keep the positive value 
     dd = data[data['mean']>0].reset_index(drop=True)
+
+    med = np.median(data['var'])
+    sig = 0.25
+    dd_new= dd[dd['var'] < sig * med].reset_index(drop=True)
 
    
     sigma = 100
-    n = len(dd['mean'])
+    n = len(dd_new['mean'])
     bim=[]
     biv=[]
     m=[]
+    
     for i in range (2,n-1,2):
-        if dd['mean'][i] in m:
+        if dd_new['mean'][i] in m:  #vérifie que la valeur n'est pas comptée dans le bin précédent
             continue
         else:
-            inf = dd['mean'][i]
+            inf = dd_new['mean'][i]
             sup = inf+3
             m=[]
             v=[]
             
             #Regroupe des valeurs 
-            for j in dd['mean']:
+            for j in dd_new['mean']:
                 if inf <= j <= sup:
                     m.append(j)
-                    v.append(dd['var'][dd['mean']==j].values[0])
-                   
-                   
+                    v.append(dd_new['var'][dd_new['mean']==j].values[0])
+   
             #calcule la moyenne
             bim.append(np.mean(m))
             biv.append(np.mean(v))
     
+
     
     data = pd.DataFrame({'mean':bim, 'var':biv})   
+
     n = len(data['mean'])     
     for j in range (2,n-1):
        
         popt, pcov = curve_fit(linear, data['mean'][0:j], data['var'][0:j])
 
-        if abs(linear(data['mean'][j+1], *popt)-data['mean'][j+1]) < 1000000*sigma:
-            sigma = pcov[0,0]
-            continue
-        else :
-            break
         
+        if abs(linear(data['mean'][j+1], *popt)-data['mean'][j+1]) > 10*sigma :
+                if abs(linear(data['mean'][j+2], *popt)-data['mean'][j+2]) < 100*sigma:
+                    sigma = pcov[0][0]
+                    data = data.drop(j+1).copy()  #supprime val j+1 en >100 sigma et garde la j+2 <100 sigma
+                else:
+                    break
+        else:
+            sigma = pcov[0][0]
 
-    perr = np.sqrt(np.diag(pcov))
-    #print(np.diag(pcov))
-    # plt.plot(data['mean'][0:j], data['var'][0:j], '.', label = (1/popt[0]))
-     
-    # plt.plot(data['mean'], linear(data['mean'], *popt),'b')
-        
-    
-    #fait un fit des données
-    data = pd.DataFrame({'mean':x, 'var':y})
-    data = data.sort_values(by='mean').reset_index(drop=True)
-    dd = data[data['mean']>0].reset_index(drop=True)
-    n = len(dd['mean'])
-    sigma = 100
-    
-    for i in range (2,n-1):
-        
-        popt2, pcov = curve_fit(linear, dd['mean'][0:i], dd['var'][0:i])
-        # print(linear(dd['mean'][i+1], *popt2)-dd['mean'][i+1])
-        if abs(linear(dd['mean'][i+1], *popt2)-dd['mean'][i+1]) < 1000000*sigma:
-            sigma = pcov[0,0]
-            continue
-        else :
-            break
-
-    # plt.plot(dd['mean'], dd['var'], '+r', label = (1/popt2[0], pcov[0][0]))
-
-    # plt.plot(data['mean'], linear(data['mean'], popt2[0], popt2[1]), 'k')
-    return data, popt
-   
+    popt, pcov = curve_fit(linear, data['mean'], data['var'])
+    return dd_new, data, popt
  
         
         

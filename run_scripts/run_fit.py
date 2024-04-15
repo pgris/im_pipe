@@ -137,14 +137,14 @@ for run in run_num :
     print(run) 
     dd = list(runs['FileName'][runs['run']==run])
     resu_fit, data = DoFit(dd, dataPtcDir, run)
-    g = resu_fit.drop(['a','b','c','chisq_dof'],axis=1)
+    g = resu_fit.drop(['param_quadra','param','c','chisq_dof'],axis=1)
     gain = pd.concat([gain, g]).reset_index(drop=True)
     
     
     #plot ptc
-    d = data[(data['raft']==raft)&(data['sensor']==sensor)]
-    dd = resu_fit[(resu_fit['raft']==raft)&(resu_fit['sensor']==sensor)]
-    visualizePTC(d, dd)
+    #d = data[(data['raft']==raft)&(data['sensor']==sensor)]
+    #dd = resu_fit[(resu_fit['raft']==raft)&(resu_fit['sensor']==sensor)]
+    visualizePTC(data, resu_fit)
     
     
     # save data

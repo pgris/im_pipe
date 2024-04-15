@@ -80,7 +80,7 @@ UnBias='1D'
 #     return 
 
 
-def visualizePTC (data, parameters) -> plt.figure :
+def visualizePTC (ndata, data, parameters) -> plt.figure :
     """
     Plot the ptc for each raft/sensor for the 16 HDU
 
@@ -135,11 +135,18 @@ def visualizePTC (data, parameters) -> plt.figure :
                     Lgain = parameters['gain_lin'][idx].values[0]
                     
                     
-                    axs[irow, icol].plot(l,a*l**2+b*l+c, 'r')
-                    axs[irow, icol].plot(l,a_lin*l+b_lin, 'g')
+                    
                     axs[irow, icol].axvline(turnoff, linestyle = '--')
                     axs[irow, icol].plot(mean,var,'+k')
                     
+                    axs[irow, icol].plot(ndata['mean'][(ndata['ampli']==i+1)&
+                               (ndata['raft']==r)&
+                               (ndata['sensor']==s)],ndata['var'][(ndata['ampli']==i+1)&
+                                          (ndata['raft']==r)&
+                                          (ndata['sensor']==s)],'+y')
+                    axs[irow, icol].plot(l,a*l**2+b*l+c, 'r')
+                    axs[irow, icol].plot(l,a_lin*l+b_lin, 'g')
+                  
                     axs[irow,icol].text(xx,yy,legend.
                                         format(i+1, np.round(Qgain,2), 
                                                np.round(Lgain,2),
