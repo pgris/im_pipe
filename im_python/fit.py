@@ -16,32 +16,35 @@ import scipy.interpolate as spi
 
 
 
-def fit_lin (var,mean) :
-    mean = mean.to_numpy()
-    var = var.to_numpy()
-    err_data=[]
-    diff_var_=[]
-    mean_=[]   
-    mean_max = 5000 #max value for fit (we want to make the fit for low illuminations)
-    for i in range (len(mean)):
-        if  mean[i] < mean_max :
-            diff_var_.append(var[i])
-            mean_.append(mean[i])
-    y_params, cov= curve_fit(linear, mean_, diff_var_)
-    return y_params[0],y_params[1]
-
-
-
 def quadra (x,a,b,c):
     return a*x**2+b*x+c
 def linear (x,a,b):
     return a*x+b
 
-def fit_quadra (var,mean,p0) :
-    
+def fit_quadra (var, mean, p0) :
+    """
+    Make a quadratic fit (ax^2 + bx + c)
+
+    Parameters
+    ----------
+    var : pd.Dataframe
+        Variance of (flat0-flat1) of one raft/sensor/ampli
+    mean : pd.Dataframe
+        Mean value of (flat0+flat1) of one raft/sensor/ampli
+    p0 : float
+        Initial value estimated by a linear fit
+
+    Returns
+    -------
+    y_params : list
+        parameters of the fit (a,b,c)
+    chisq_dof : value
+        chi square
+
+    """
     mean = mean.to_numpy()
     var = var.to_numpy()
-    #max value for fit (we want to make the fit for low illuminations)
+    #max value for the fit (we want to make the fit for low illuminations)
     mean_max = 50000
     x_data=[]
     y_data=[]
@@ -51,11 +54,10 @@ def fit_quadra (var,mean,p0) :
             y_data.append(var[i])
             x_data.append(mean[i])
             
-            #err_data.append(np.sqrt(err[i]))
             err_data.append(0.02*var[i])
-    y_params, cov, infodict,_,_ = curve_fit(quadra,x_data,y_data,sigma=err_data,full_output=True) #equation of order 2
+    y_params, cov, infodict,_,_ = curve_fit(quadra,x_data,y_data,
+                                            sigma=err_data,full_output=True)
 
-    #chisq_dof = res / (len(x_data)-3)
     chisq_dof = np.sum((infodict['fvec'])**2)/(len(x_data)-3)
     
     return y_params, chisq_dof
@@ -66,7 +68,8 @@ def fit (tab, run) -> pd.DataFrame() :
     """
     Make a quadratic fit of the data and calculate the turnoff ang gain
         - turnoff : mean illumination value where difference in illumnitation is maximum
-        - gain : K = 1/b (b parameter of the fit)
+        - gain : K = 1/a (a parameter of the linear fit (ax+b))
+        - gain quadratic : K = 1/b (b parameter of the quadratic fit (ax²+bx+c))
 
     Parameters
     ----------
@@ -76,13 +79,19 @@ def fit (tab, run) -> pd.DataFrame() :
     Returns
     -------
     parameters : pd.dataframe
-        output : 'run','raft','type','sensor','ampli','a','b','c','chisq_dof','gain','turnoff'
-          (a,b,c are the parameters of a quadratic fit ax²+bx+c)                                    
-
+        output : ('run','raft','type','sensor','ampli',
+                 'param_quadra', 'gain_quadra',
+                 'param_lin', 'gain_lin',
+                 'turnoff')
+    df : pd.DataFrame
+        Reduced data
+    dd : pd.DataFrame 
+        Data used for the linear fit
     """
     c = []
     raft = tab['raft'].unique()
     sensor = tab['sensor'].unique()
+    df = pd.DataFrame()
     dd = pd.DataFrame()
     for r in raft:
         for s in sensor:
@@ -96,61 +105,126 @@ def fit (tab, run) -> pd.DataFrame() :
                     print(r, s, p)
                     mean = tab['mean'][idx].reset_index(drop=True)
                     var = tab['var'][idx].reset_index(drop=True)
-                    a,b = fit_lin(var, mean)
 
-                    y_param_qua, chisq_dof = fit_quadra(var, mean,b)
-                    Qgain = 1/y_param_qua[1]
-                    new_data, ndata, y_param_lin= fit_lin_pr(mean, var)
+    
+                    bdata = bin_data(mean, var)
+                    
+                    ndata, y_param_lin = fit_lin_pr(bdata)
+                    
                     Lgain = 1/y_param_lin[0]
+                    
+                    y_param_qua, chisq_dof = fit_quadra(var, mean, y_param_lin[0])
+                    Qgain = 1/y_param_qua[1]
+                    
                     
                     tt = turnoff (pd.DataFrame({'mean':mean,'var':var}), Lgain)
 
-                    #residue(y_params,a,b,mean, var, p)
-                    
-                    #ccd = tab['type'][tab['raft']==r]
                     ccd = 1
                     c.append((run,r,ccd,s,p,
                               y_param_qua,Qgain,
                               y_param_lin, Lgain,
                               tt))
                     
+                    bd = add_col(bdata, r, s, p)
+                    df = pd.concat((df, bd))
+                    
                     nd = add_col(ndata, r, s, p)
                     dd = pd.concat((dd, nd))
+                    
     parameters = pd.DataFrame(c ,columns=['run','raft','type','sensor','ampli',
                                           'param_quadra', 'gain_quadra',
                                           'param_lin', 'gain_lin',
                                           'turnoff'])       
     
-    return parameters, dd
+    return parameters, df, dd
 
 def add_col (df,r,s,p):
+    """
+    Add columns to a DataFrame
+    
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame to which columns will be added
+    r : int
+        Value for the 'raft' column
+    s : int
+        Value for the 'sensor' column
+    p : int
+        Value for the 'ampli' column
+    
+    Returns
+    -------
+    df : pd.DataFrame
+        DataFrame with the added columns
+    """
     df['raft'] = r
     df['sensor'] = s
     df['ampli'] = p
     return df
 
-def residue (param, a, b, x_data, y_data, ampli):
-    
-    colors = plt.cm.tab20(np.linspace(0, 1, 17))
-    y_fit_quadra = quadra(x_data,param[0],param[1], param[2])
-    y_fit_lin = a*x_data+b
-    
-    res = y_data - y_fit_quadra
-    res_lin = y_data - y_fit_lin
-    plt.plot(x_data, res_lin/x_data, '.', c = colors[ampli-1], label = ampli-1)
-    plt.xlim(0,3000)
-    plt.ylim(-0.06,0.30)
-    plt.ylabel('(var(flat0-flat1) - y_fit)/mean')
-    plt.xlabel('mean')
+def residue_linear (data, param) -> pd.DataFrame():
+    """
     
 
+    Parameters
+    ----------
+    data : pd.dataframe
+        Reduce data of the PTC
+    Param : pd.dataframe
+        parameter of the fit 
+          
+    Returns
+    -------
+    parameters : pd.dataframe
+        output : 'run','raft','type','sensor','ampli','a','b','c','chisq_dof','gain','turnoff'
+          (a,b,c are the parameters of a quadratic fit ax²+bx+c)                                    
+
+    """
+    x_data = data['mean']
+    y_data = data['var']
+    
+    a = param['param_lin'].values[0][0]
+    b = param['param_lin'].values[0][1]
+    print(a)
+    y_fit_lin = a*x_data+b
+    
+    res =  y_fit_lin - y_data 
+    plt.plot(x_data, res/y_data, '.')
+
+    plt.ylabel('(var(flat0-flat1) - y_fit)/var')
+    plt.xlabel('mean')
+    plt.title()
     plt.legend()
     return 
 
-
-def turnoff (data, gain):
-    inf = 50000
-    sup = 100000
+def turnoff (data, gain) -> pd.DataFrame() :
+    """
+    Determine the turnoff from the PTC.
+    The turnoff will depend on the gain, defining 2 ranges for the turnoff 
+    depending on the gain.
+    
+    Parameters
+    ----------
+    data : pd.DataFrame
+        Reduced data of the PTC.
+    gain : float
+        Gain of the raft/sensor/ampli.
+    
+    Returns
+    -------
+    turnoff : float
+        Turnoff value.
+    """
+    #Define the range of the turnoff value
+    lim_gain = 1.8
+    if gain < lim_gain:
+        inf = 60000
+        sup = 100000
+    else:
+        inf = 40000
+        sup = 68500
+        
     idx = data[(data['mean'] >=inf) & (data['mean']<=sup)].index
     if not list(idx):
         print('impossible de déterminer le turnoff')   
@@ -160,37 +234,97 @@ def turnoff (data, gain):
         yy = data['var'][idx]
         
         
-        #f = interpolate.interp1d(data['mean'], data['var'])
         f = spi.interp1d(xx,yy,fill_value="extrapolate")
         x = np.linspace(min(xx), max(xx))
         y = f(x)
     
         vmax_idx = np.argmax(y)
-        tt = x[vmax_idx]
-    # plt.figure()
-    # plt.plot(data['mean'], data['var'], '.')
-    # plt.plot(x, y, label = tt)
-    # plt.legend()
-    # plt.show()
-    
+        tt = x[vmax_idx]    
     return tt
         
+# def bin_data (x, y) -> pd.DataFrame() :
+#     """
     
-def fit_lin_pr (x, y):
+
+#     Parameters
+#     ----------
+#     x : TYPE
+#         Mean values
+#     y : TYPE
+#         Variance
+
+#     Returns
+#     -------
+#     new_data : TYPE
+#         DESCRIPTION.
+
+#     """
+#     data = pd.DataFrame({'mean':x, 'var':y})
+#     data = data.sort_values(by='mean').reset_index(drop=True)
     
-    #fait un fit par bin (valeur moyenne)
+#     #Keep the positive value 
+#     dd = data[data['mean']>0].reset_index(drop=True)
+
+#     med = np.median(data['var'])
+#     sig = 0.25
+#     dd_new= dd[dd['var'] < sig * med].reset_index(drop=True)
+
+#     n = len(dd_new['mean'])
+#     bim=[]
+#     biv=[]
+#     m=[]
+    
+#     for i in range (2,n-1,2):
+#         if dd_new['mean'][i] in m:  #vérifie que la valeur n'est pas comptée dans le bin précédent
+#             continue
+#         else:
+#             inf = dd_new['mean'][i]
+#             sup = inf+3
+#             m=[]
+#             v=[]
+#             #Regroupe des valeurs 
+#             for j in dd_new['mean']:
+#                 if inf <= j <= sup:
+#                     m.append(j)
+#                     v.append(dd_new['var'][dd_new['mean']==j].values[0])
+   
+#             #calcule la moyenne
+#             bim.append(np.mean(m))
+#             biv.append(np.mean(v))
+
+#     new_data = pd.DataFrame({'mean':bim, 'var':biv})   
+#     return new_data
+
+def bin_data (x, y) -> pd.DataFrame() :
+    """
+    
+
+    Parameters
+    ----------
+    x : TYPE
+        Mean values
+    y : TYPE
+        Variance
+
+    Returns
+    -------
+    new_data : TYPE
+        DESCRIPTION.
+
+    """
     data = pd.DataFrame({'mean':x, 'var':y})
     data = data.sort_values(by='mean').reset_index(drop=True)
     
     #Keep the positive value 
-    dd = data[data['mean']>0].reset_index(drop=True)
+    dd = data[data['mean']>50].reset_index(drop=True)
 
-    med = np.median(data['var'])
-    sig = 0.25
-    dd_new= dd[dd['var'] < sig * med].reset_index(drop=True)
 
-   
-    sigma = 100
+    # med = np.median(data['var'])
+    # sig = 0.25
+    # dd_new= dd[dd['var'] < sig * med].reset_index(drop=True)
+    
+    dd_new = dd
+
     n = len(dd_new['mean'])
     bim=[]
     biv=[]
@@ -204,7 +338,6 @@ def fit_lin_pr (x, y):
             sup = inf+3
             m=[]
             v=[]
-            
             #Regroupe des valeurs 
             for j in dd_new['mean']:
                 if inf <= j <= sup:
@@ -214,46 +347,46 @@ def fit_lin_pr (x, y):
             #calcule la moyenne
             bim.append(np.mean(m))
             biv.append(np.mean(v))
-    
 
-    
-    data = pd.DataFrame({'mean':bim, 'var':biv})   
+    new_data = pd.DataFrame({'mean':bim, 'var':biv})   
+    return new_data
 
+def fit_lin_pr (data):
+    """
+    Do a linear fit for low illuminations
+
+    Parameters
+    ----------
+    data : pd.Dataframe
+        Reduced data (mean, var)
+
+    Returns
+    -------
+    fdata : pd.Dataframe
+        Data used for the fit (mean, var)
+    popt : np.array
+        Parameters of the fit (a, b)
+
+    """
+    sigma = 100
     n = len(data['mean'])     
     for j in range (2,n-1):
        
-        popt, pcov = curve_fit(linear, data['mean'][0:j], data['var'][0:j])
-
+        popt, pcov = curve_fit(linear, data['mean'][0:j], data['var'][0:j]);
         
-        if abs(linear(data['mean'][j+1], *popt)-data['mean'][j+1]) > 10*sigma :
-                if abs(linear(data['mean'][j+2], *popt)-data['mean'][j+2]) < 100*sigma:
+        #Check if the next value is closed enough to the linear fit
+        if abs(linear(data['mean'][j+1], *popt)-data['mean'][j+1]) > 5*sigma :
+                if abs(linear(data['mean'][j+2], *popt)-data['mean'][j+2]) < 50*sigma:
                     sigma = pcov[0][0]
-                    data = data.drop(j+1).copy()  #supprime val j+1 en >100 sigma et garde la j+2 <100 sigma
+                    data = data.drop(j+1).copy()  #delete value j+1 if >5*sigma and keep j+2 if <50*sigma
                 else:
                     break
         else:
             sigma = pcov[0][0]
 
-    popt, pcov = curve_fit(linear, data['mean'], data['var'])
-    return dd_new, data, popt
+    popt, pcov = curve_fit(linear, data['mean'], data['var']);
+    return data, popt
  
-        
-        
-   
-
-# resa = pd.read_hdf("../fit_resu/fit_resu2_13144.hdf5")
-# run ='13144'
-# raft = 'R22'
-# sensor = 'S11'
-# ampli = '10'
-# ptcdir = '../ptc_resu/'
-# file = pd.concat([pd.read_hdf(ptcdir+'ptc_{}_flat_ND.hdf5'.format(run)),
-#                   pd.read_hdf(ptcdir+'ptc_{}_flat_empty.hdf5'.format(run))]).reset_index(drop=True)
-
-# resa = file[(file['raft']==raft)&(file['sensor']==sensor)&(file['ampli']==10)]
-# mn, p= fit_lin_pr(resa['var'], resa['mean'])
-# tt = turnoff(resa, 1/p[0] )
-
 
 
 

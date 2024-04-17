@@ -85,8 +85,6 @@ def process_ptc(data) -> pd.DataFrame:
 parser = OptionParser(description='Script to estimate the gain from the PTC on FP images')
 
 
-
-
 parser.add_option('--dataPtcDir', type=str,
                   default='../ptc_resu/',
                   help='Path to data [%default]')
@@ -95,18 +93,17 @@ opts, args = parser.parse_args()
 dataPtcDir = opts.dataPtcDir
 runs = GetRunNumber(dataPtcDir)
 
-
 parser.add_option('--run_num', type=str,
                   default=runs['run'].unique(),
                   help='list of runs to process [%default]')
 
 parser.add_option('--outDir', type=str,
-                  default="../fit_resu",
+                  default="../fit_resu/",
                   help='output dir for the processed data[%default]')
 
 parser.add_option('--outName', type=str,
-                  default="fit_resu2_",
-                  help='output file name[%default]')
+                  default="fit_resu_",
+                  help='output file name [%default]')
 
 
 parser.add_option('--prefix', type=str,
@@ -115,7 +112,16 @@ parser.add_option('--prefix', type=str,
 
 parser.add_option('--dirgain', type=str,
                   default='../gain/',
-                  help='prefix for Flat files [%default]')
+                  help='Out dir for the calculated gain [%default]')
+
+parser.add_option('--OutdirData', type=str,
+                  default='../gain/',
+                  help='Out dir for the reduces data [%default]')
+
+parser.add_option('--outNameData', type=str,
+                  default='reduced_data_',
+                  help='output file name [%default]')
+
 
 opts, args = parser.parse_args()
 run_num = opts.run_num
@@ -123,54 +129,44 @@ outDir = opts.outDir
 outName = opts.outName
 prefix = opts.prefix
 dirgain = opts.dirgain
+OutdirData = opts.OutdirData
+outNameData = opts.outNameData
+
+checkDir(dirgain)
+checkDir(OutdirData)
+
+
 gain = pd.DataFrame()
 
 
-checkDir(dirgain)
+dd = list(runs['FileName'][runs['run']=='13144'])
+bindata = DoFit(dd, dataPtcDir, '13144')
 
-raft = 'R22'
-sensor = 'S11'
 
-min_gain=[]
-max_gain=[]
+
+
 for run in run_num : 
     print(run) 
     dd = list(runs['FileName'][runs['run']==run])
-    resu_fit, data = DoFit(dd, dataPtcDir, run)
-    g = resu_fit.drop(['param_quadra','param','c','chisq_dof'],axis=1)
+    resu_fit, ndata, data = DoFit(dd, dataPtcDir, run)
+    g = resu_fit.drop(['param_quadra','param_lin'],axis=1)
     gain = pd.concat([gain, g]).reset_index(drop=True)
     
-    
-    #plot ptc
-    #d = data[(data['raft']==raft)&(data['sensor']==sensor)]
-    #dd = resu_fit[(resu_fit['raft']==raft)&(resu_fit['sensor']==sensor)]
-    visualizePTC(data, resu_fit)
-    
-    
-    # save data
-    outPath = '{}/{}{}.hdf5'.format(outDir, outName, run)
+    #save fit result
+    outPath = '{}{}{}.hdf5'.format(outDir, outName, run)
     resu_fit.to_hdf(outPath, key='ptc')
-    gain.to_hdf(dirgain+'gain.hdf5', key='gain')
+    #save Reduced data 
+    outPathData = '{}{}{}.hdf5'.format(OutdirData, outNameData, run)
+    ndata.to_hdf(outPathData, key='data')
+#save gain
+gain.to_hdf(dirgain+'gain.hdf5', key='gain')   
     
     
-    MoyGain = np.mean(g['gain'])
-    if MoyGain < 1.35 :
-        min_gain.append(gain['run'].unique())
-    else :
-        max_gain.append(gain['run'].unique())
-        
+for run in run_num:      
+    visualizePTC(resu_fit, ndata, data, run)
+    
 
 
-# gain = pd.read_hdf('../gain/gain.hdf5')    
-# min_gain=[]
-# max_gain=[]
-# run_num = gain['run'].unique()
-# for run in run_num :   
-#     MoyGain = np.mean(g['gain'])
-#     if MoyGain < 1.35 :
-#         min_gain.append(gain['run'])
-#     else :
-#         max_gain.append(gain['run'])
     
 
     

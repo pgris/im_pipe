@@ -172,43 +172,6 @@ def SingleImageIR(actfile,gains=None):
 
 
 
-
-# def varianceCalculation (flat0, flat1, h):
-    
-#     var = np.var(flat0-flat1)/2
-#     mean = np.mean((flat0+flat1)/2)
-#     varA = np.var(flat0)
-#     varB = np.var(flat1)
-#     stdAB = -0.5 * (2*var-varA-varB)
-
-#     if h > 0:
-#         dvarA = np.var((flat0+h)-flat1)
-#         dvarB = np.var(flat0-(flat1+h))
-#         dA = (dvarA-2*var)/h
-#         dB = (dvarB-2*var)/h
-
-#         vv = (dA**2)*varA + (dB**2)*varB + 2*dA*dB*stdAB
-#     else :
-#         vv=0
-        
-#     return var, mean, varA, varB, dvarA, dvarB, stdAB, vv
-
-# def varianceCalculation(flat0, flat1, h):
-#     var = np.var(flat0-flat1)
-#     mean = np.mean((flat0+flat1)/2)
-    
-#     varA = np.var(flat0)
-#     varB = np.var(flat1)
-
-#     covAB = np.cov(flat0, flat1)[0][1]  
-
-#     vv = np.sqrt(((var)**2)/42)
-
-#     return var, mean, varA, varB, varA,varB, covAB, vv
-
-
-
-
 def varianceCalculation (flat0, flat1, h):
     mean = np.mean((flat0+flat1)/2)
     
@@ -292,7 +255,7 @@ def process(flat0, flat1) -> pd.DataFrame() :
         
         if raft in ITL : 
             ccd = 'ITL'
-        else:
+        elif raft in e2v :
             ccd = 'e2v'
             
         r.append((raft,ccd,sensor,file_name_flat0,file_name_flat1,p+1, 
