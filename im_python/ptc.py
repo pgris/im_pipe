@@ -51,14 +51,8 @@ Created on Fri Mar  8 15:10:58 2024
 # * display different illuminations
 
 
-import astropy.io.fits as pyfits
-import os
-import sys
 import matplotlib.pyplot as plt
 import numpy as np
-import scipy.stats as stats
-from scipy.stats import linregress
-import json
 import bot_frame_op as bot
 import pandas as pd
 
@@ -177,11 +171,42 @@ def SingleImageIR(actfile,gains=None):
         return spf
 
 
+
+def varianceCalculation (flat0, flat1, h):
+    mean = np.mean((flat0+flat1)/2)
+    
+    var = np.var(flat0-flat1)
+    
+    varA = np.var(flat0)
+    varB = np.var(flat1)
+    stdAB = -0.5 * (var-varA-varB)
+
+   
+    dvarA = np.var(flat0-flat1-h)
+    dvarB = np.var(flat0-flat1+h)
+    dA = (dvarA-dvarB)/(2*h)
+
+    vv = (dA**2)*var
+
+    return var, mean, varA, varB, dvarA, dvarB, stdAB, vv
+
+def plot_hist_ampli (flat0, flat1, p, name):
+    plt.figure()
+    plt.hist(flat0.flatten(), bins = 100, color='red', alpha = 0.6, label='flat0')
+    plt.hist(flat1.flatten(), bins = 100, alpha = 0.6, color = 'blue', label='flat1')
+    plt.hist(flat0.flatten()-flat1.flatten(), bins = 100, alpha = 0.6, color = 'green', label='flat0-flat1')
+    plt.title(str(name)+' - ampli '+str(p))
+    #plt.xlim((40000,60000))
+    plt.legend()
+    plt.show()
+    return
+
 def process(flat0, flat1) -> pd.DataFrame() : 
     """
     Process the data
         - Calculate mean value for each HDU (16) for the two flat
-        - Calculate variance of the difference of the 2 flat divided by 2 (mean to estimate the ptc)
+        - Calculate variance of the difference of the 2 flat divided by 2 
+        (mean to estimate the ptc)
 
     Parameters
     ----------
@@ -191,10 +216,16 @@ def process(flat0, flat1) -> pd.DataFrame() :
     Returns
     -------
     parameters : pd.dataframe
-        output : 'raft','sensor','flat0','flat1','ampli',
-                                       'mean','var'
+        output : ['raft','type','sensor','flat0','flat1','ampli',
+                  'mean','var', 'var0', 'var1','dvar0',
+                  'dvar1', 'std01', 'var(var)']
 
     """
+    ITL = ['R00', 'R01', 'R02', 'R03', 'R04', 'R10',
+           'R20', 'R40', 'R41', 'R42', 'R43', 'R44']
+    e2v = ['R11', 'R12', 'R13', 'R14', 'R21', 'R22', 'R23', 
+           'R24', 'R30', 'R31', 'R32', 'R33', 'R34']
+    
     file_name_flat0 =flat0.split('/')[-1]
     file_name_flat1 =flat1.split('/')[-1]
     raft = file_name_flat0.split('_')[4]
@@ -206,240 +237,33 @@ def process(flat0, flat1) -> pd.DataFrame() :
     flat1_overscanned=SingleImageIR(FileUnBias.all_file[1])
     
     r = []
-    
-    mean =np.mean((flat0_overscanned+flat1_overscanned)/2)
-    std =np.var(flat0_overscanned-flat1_overscanned)/2
-
-    r.append((raft,sensor,file_name_flat0,file_name_flat1,99,mean,std))
     for p in range (16):
-            
+        print(p) 
         if p <=7:
             ampli_flat0=flat0_overscanned[0:2002,512*(p):(513)*(p+1)]
             ampli_flat1=flat1_overscanned[0:2002,512*(p):(513)*(p+1)]
+            # if p == 5:
+            #     plot_hist_ampli(ampli_flat0, ampli_flat1, p, file_name_flat0)
         else :
             ampli_flat0=flat0_overscanned[2002:-1,512*(p-8):(513)*(p+1-8)]
             ampli_flat1=flat1_overscanned[2002:-1,512*(p-8):(513)*(p+1-8)]
 
-        std = np.var(ampli_flat0-ampli_flat1)/2
-        mean = np.mean((ampli_flat0+ampli_flat1)/2)
+
+        var, mean, var0, var1,dvar0, dvar1, std01, vv= varianceCalculation(ampli_flat0,
+                                                              ampli_flat1,
+                                                              h=10**-6)
         
-        r.append((raft,sensor,file_name_flat0,file_name_flat1,p+1, 
-                  mean, std))
- 
-    res = pd.DataFrame(r ,columns=['raft','sensor','flat0','flat1','ampli',
-                                   'mean','var'])
-    return res
-
-
-def fit_lin (var,mean) :
-    mean = mean.to_numpy()
-    var = var.to_numpy()
-    diff_var_=[]
-    mean_=[]   
-    mean_max = 5000 #max value for fit (we want to make the fit for low illuminations)
-    for i in range (len(mean)):
-        if  mean[i] < mean_max :
-            diff_var_.append(var[i])
-            mean_.append(mean[i])
-    a, b, r, p_value, std_err = linregress(mean_, diff_var_)
-    return a,b
-
-
-def fit_quadra (var,mean) :
-    
-    mean = mean.to_numpy()
-    var = var.to_numpy()
-    #max value for fit (we want to make the fit for low illuminations)
-    mean_max = 60000
-    x_data=[]
-    y_data=[]
-    order = 2
-    for i in range (len(mean)):
-        if  mean[i] < mean_max:
-            y_data.append(var[i])
-            x_data.append(mean[i])
-    y_params = np.polyfit(x_data, y_data, order)  #equation of order 2
-    return y_params
-
-def fit (tab) -> pd.DataFrame() : 
-    """
-    Make a quadratic fit of the data and calculate the turnoff ang gain
-        - turnoff : mean illumination value where difference in illumnitation is maximum
-        - gain : K = 1/b (b parameter of the fit)
-
-    Parameters
-    ----------
-    tab : pd.dataframe
-        Mean and variance for each raft/sensor/HDU
-        
-    Returns
-    -------
-    parameters : pd.dataframe
-        output : 'raft','sensor','ampli','a','b','c','gain','turnoff'
-          (a,b,c are the parameters of a quadratic fit ax²+bx+c)                                    
-
-    """
-    c = []
-    raft = tab['raft'].unique()
-    sensor = tab['sensor'].unique()
-    for r in raft:
-        for s in sensor:
-            for p in range(1,17):
-                idx = tab[(tab['ampli']==p)&
-                          (tab['raft']==r)&
-                          (tab['sensor']==s)].index
-                if not list(idx):
-                    continue
-                else:
-                    mean = tab['mean'][idx].reset_index(drop=True)
-                    var = tab['var'][idx].reset_index(drop=True)
-                    a,b = fit_lin(var, mean)
-                    y_params = fit_quadra(var, mean)
-                    max_var = np.max(var)
-                    turnoff_idx = var[var==max_var].index
-                    turnoff = mean[turnoff_idx[0]]
-                
-                    c.append((r,s,p,
-                              y_params[0],y_params[1],y_params[2],1/y_params[1],turnoff))
+        if raft in ITL : 
+            ccd = 'ITL'
+        elif raft in e2v :
+            ccd = 'e2v'
             
-    parameters = pd.DataFrame(c ,columns=['raft','sensor','ampli',
-                                          'a','b','c','gain','turnoff'])                                  
-    return parameters
-
-
-
-def plot_ampli (data, parameters) -> plt.figure :
-    """
-    Plot the ptc for each raft/sensor for the 16 HDU
-
-    Parameters
-    ----------
-    file_name : 
-    data : pd.dataframe
-        Mean and variance for each raft/sensor/HDU
+        r.append((raft,ccd,sensor,file_name_flat0,file_name_flat1,p+1, 
+                  mean, var/2, var0,var1,dvar0, dvar1,std01, vv))
         
-    parameters : pd.dataframe
-        parameters of fit + turnoff + gain
-        
-    Returns
-    -------
-    None.
-
-    """
-    l=np.linspace(0,60000,50)
-    xx = 60000/2
-    yy=100
-    legend = "HDU {} \nGain = {}\nTurnoff = {}"
-    raft = parameters['raft'].unique()
-    sensor = parameters['sensor'].unique()
-    for r in raft:
-        for s in sensor:
-            idxc = data[(data['raft']==r)&(data['sensor']==s)].index
-            if not list(idxc):
-                continue
-            else:
-                fig, axs = plt.subplots(4,4,sharex=True,figsize=(18,9))
-                for i in range (16):
-                    irow = int(i/4)
-                    icol = i%4
-                    idx = data[(data['ampli']==i+1)&
-                               (data['raft']==r)&
-                               (data['sensor']==s)].index
-                    mean = data['mean'][idx] 
-                    var = data['var'][idx]
-                    idx = parameters[(parameters['ampli']==i+1)&
-                                     (parameters['raft']==r)&
-                                     (parameters['sensor']==s)].index
-                    a = parameters['a'][idx].values[0]
-                    b = parameters['b'][idx].values[0]
-                    c = parameters['c'][idx].values[0]
-                    turnoff = parameters['turnoff'][idx].values[0]
-                    gain = parameters['gain'][idx].values[0]
-                    axs[irow, icol].plot(mean,var,'.')
-                    axs[irow, icol].plot(l,a*l**2+b*l+c)
-                    axs[irow,icol].text(xx,yy,legend.
-                                        format(i+1, np.round(gain,2),
-                                               np.round(turnoff,4)),
-                                        fontsize=12)
-          
-                fig.suptitle('PTC for '+r+s+ 'run13144 : '+str(len(raft)-1)+
-                             ' illuminations (unbias '+str(UnBias)+')')
-                fig.supxlabel('mean signal (ADU)')
-                fig.supylabel('var ($ADU^{2}$)')
-                fig.show()
-    return 
-
-
-# path = '/home/julie/stage2/data/CCD_test/'
-# filelist = os.listdir(path)
-
-# path = '/home/julie/fm_study/im_pipe/input/'
-# flat_ND = 'flat_13144_flat_ND.csv'  
-# flat_empty = 'flat_13144_flat_empty.csv'
-# flat = [path+flat_empty,path+flat_ND]
-# path = "/home/julie/Téléchargements/CCD2-20240307T134109Z-002/CCD2/"
-
-
-# df = merge_data(filelist, flat)
-# resa = pd.DataFrame()
-
-# raft = df['raft'].unique()
-# sensor = df['sensor'].unique()
-
-
-
-# for i,row in df.iterrows():
-#     flat0 = path+row['full_path_flat0']
-#     flat1 = path+row['full_path_flat1']
-#     res  = process(flat0,flat1)
-#     resa = pd.concat([res,resa]).reset_index(drop=True)
-
-# param_fit=fit(resa)
-# plot_ampli(resa, param_fit)
-
-
-
-# print(resa)
-# print(param_fit)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     
-    
-
+    res = pd.DataFrame(r ,columns=['raft','type','sensor','flat0','flat1','ampli',
+                                   'mean','var', 'var0', 'var1','dvar0',
+                                   'dvar1', 'std01', 'var(var)'])
+    return res
 
