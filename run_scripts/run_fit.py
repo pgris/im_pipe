@@ -92,9 +92,10 @@ parser.add_option('--dataPtcDir', type=str,
 opts, args = parser.parse_args()
 dataPtcDir = opts.dataPtcDir
 runs = GetRunNumber(dataPtcDir)
+allrun = runs['run'].unique()
 
 parser.add_option('--run_num', type=str,
-                  default=runs['run'].unique(),
+                  default=allrun,
                   help='list of runs to process [%default]')
 
 parser.add_option('--outDir', type=str,
@@ -139,31 +140,38 @@ checkDir(OutdirData)
 gain = pd.DataFrame()
 
 
-dd = list(runs['FileName'][runs['run']=='13144'])
-bindata = DoFit(dd, dataPtcDir, '13144')
 
-
-
-
+res = pd.DataFrame()
 for run in run_num : 
     print(run) 
-    dd = list(runs['FileName'][runs['run']==run])
-    resu_fit, ndata, data = DoFit(dd, dataPtcDir, run)
+    dd = list(runs['FileName'][runs['run']==run])  
+    resu_fit,datafit, data= DoFit(dd, dataPtcDir, run)
+    #res = pd.concat([res,resu_fit]).reset_index(drop=True)
     g = resu_fit.drop(['param_quadra','param_lin'],axis=1)
     gain = pd.concat([gain, g]).reset_index(drop=True)
+  
     
     #save fit result
     outPath = '{}{}{}.hdf5'.format(outDir, outName, run)
     resu_fit.to_hdf(outPath, key='ptc')
     #save Reduced data 
     outPathData = '{}{}{}.hdf5'.format(OutdirData, outNameData, run)
-    ndata.to_hdf(outPathData, key='data')
+    data.to_hdf(outPathData, key='data')
+    
 #save gain
 gain.to_hdf(dirgain+'gain.hdf5', key='gain')   
-    
-    
-for run in run_num:      
-    visualizePTC(resu_fit, ndata, data, run)
+outPathData = '{}{}{}.hdf5'.format(OutdirData, outNameData, run_num[0])
+
+
+run = allrun[0]
+dd = list(runs['FileName'][runs['run']==run])  
+resu_fit,datafit, data= DoFit(dd, dataPtcDir, run)
+visualizePTC(resu_fit, data, datafit, run)
+
+
+
+gain = pd.read_hdf('../gain/gain.hdf5')  
+plt.hist(gain['gain_lin'][gain['gain_lin']!='undetermined'], bins = 100)
     
 
 

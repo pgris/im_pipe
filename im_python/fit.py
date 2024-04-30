@@ -13,8 +13,19 @@ from scipy.stats import linregress
 from scipy import interpolate
 from scipy.optimize import minimize_scalar
 import scipy.interpolate as spi
+import itertools
 
 
+def typeCCD (data):
+    ITL = ['R00', 'R01', 'R02', 'R03', 'R04', 'R10',
+           'R20', 'R40', 'R41', 'R42', 'R43', 'R44']
+    e2v = ['R11', 'R12', 'R13', 'R14', 'R21', 'R22', 'R23', 
+           'R24', 'R30', 'R31', 'R32', 'R33', 'R34']
+    
+    data['type'] = 'ITL' if data['raft'].all() in ITL else 'e2v'
+
+    return data
+    
 
 def quadra (x,a,b,c):
     return a*x**2+b*x+c
@@ -63,7 +74,6 @@ def fit_quadra (var, mean, p0) :
     return y_params, chisq_dof
 
 
-
 def fit (tab, run) -> pd.DataFrame() : 
     """
     Make a quadratic fit of the data and calculate the turnoff ang gain
@@ -80,63 +90,70 @@ def fit (tab, run) -> pd.DataFrame() :
     -------
     parameters : pd.dataframe
         output : ('run','raft','type','sensor','ampli',
-                 'param_quadra', 'gain_quadra',
-                 'param_lin', 'gain_lin',
-                 'turnoff')
+                  'param_quadra', 'gain_quadra',
+                  'param_lin', 'gain_lin',
+                  'turnoff')
     df : pd.DataFrame
         Reduced data
     dd : pd.DataFrame 
         Data used for the linear fit
     """
-    c = []
+    parameters = pd.DataFrame()
+    col = ['run','raft','type','sensor','ampli',
+           'param_quadra', 'gain_quadra',
+           'param_lin', 'gain_lin',
+           'turnoff']
     raft = tab['raft'].unique()
     sensor = tab['sensor'].unique()
-    df = pd.DataFrame()
-    dd = pd.DataFrame()
-    for r in raft:
-        for s in sensor:
-            for p in range(1,17):
-                idx = tab[(tab['ampli']==p)&
-                          (tab['raft']==r)&
-                          (tab['sensor']==s)].index
-                if not list(idx):
-                    continue
-                else:
-                    print(r, s, p)
-                    mean = tab['mean'][idx].reset_index(drop=True)
-                    var = tab['var'][idx].reset_index(drop=True)
+    # raft = ['R02']
+    # sensor = ['S01']
+    datafit = pd.DataFrame()
+    tab = tab.reset_index(drop=True)
+    typeCCD(tab)
+    for r, s, p in itertools.product(raft, sensor, range(1, 17)):
+        idx = tab[(tab['ampli']==p)&
+                  (tab['raft']==r)&
+                  (tab['sensor']==s)].index
+        if not list(idx):
+            print('pas de ', r, s, p)
+            continue
+        else:
+            print(r, s, p)
+            #Select the data for each raft/sensor/ampli
+            mean = tab['mean'][idx].reset_index(drop=True)
+            var = tab['var'][idx].reset_index(drop=True)
+          
+            bdata = pd.DataFrame({'mean':mean, 'var':var})
+            
+            ndata, y_param_lin = fit_lin_pr(bdata)
+            nd = add_col(ndata, r, s, p)
+            datafit = pd.concat((datafit, nd))
+           
+            if str(y_param_lin) == 'impossible':
+                Lgain = 'undetermined'
+                tt = 'undetermined'
+            else:
+                Lgain = 1/y_param_lin[0]
+                tt = turnoff (bdata, Lgain)
+                if Lgain > 3 or Lgain < 1:
+                    Lgain = 'undetermined'
+                
+            y_param_qua, chisq_dof = fit_quadra(var, mean, y_param_lin[0])
+            Qgain = 1/y_param_qua[1]
 
-    
-                    bdata = bin_data(mean, var)
-                    
-                    ndata, y_param_lin = fit_lin_pr(bdata)
-                    
-                    Lgain = 1/y_param_lin[0]
-                    
-                    y_param_qua, chisq_dof = fit_quadra(var, mean, y_param_lin[0])
-                    Qgain = 1/y_param_qua[1]
-                    
-                    
-                    tt = turnoff (pd.DataFrame({'mean':mean,'var':var}), Lgain)
+            ccd = 1
 
-                    ccd = 1
-                    c.append((run,r,ccd,s,p,
-                              y_param_qua,Qgain,
-                              y_param_lin, Lgain,
-                              tt))
-                    
-                    bd = add_col(bdata, r, s, p)
-                    df = pd.concat((df, bd))
-                    
-                    nd = add_col(ndata, r, s, p)
-                    dd = pd.concat((dd, nd))
-                    
-    parameters = pd.DataFrame(c ,columns=['run','raft','type','sensor','ampli',
-                                          'param_quadra', 'gain_quadra',
-                                          'param_lin', 'gain_lin',
-                                          'turnoff'])       
-    
-    return parameters, df, dd
+            
+            c = (run,r,ccd,s,p, y_param_qua, Qgain, y_param_lin, Lgain, tt)
+            
+            
+            df = pd.DataFrame([c], columns= col)
+                   
+            parameters = pd.concat([parameters, df]).reset_index(drop=True)  
+    #residue_linear(bdata, parameters)
+    return parameters, datafit
+
+
 
 def add_col (df,r,s,p):
     """
@@ -186,7 +203,6 @@ def residue_linear (data, param) -> pd.DataFrame():
     
     a = param['param_lin'].values[0][0]
     b = param['param_lin'].values[0][1]
-    print(a)
     y_fit_lin = a*x_data+b
     
     res =  y_fit_lin - y_data 
@@ -217,18 +233,18 @@ def turnoff (data, gain) -> pd.DataFrame() :
         Turnoff value.
     """
     #Define the range of the turnoff value
-    lim_gain = 1.8
+    lim_gain = 1.57
     if gain < lim_gain:
         inf = 60000
         sup = 100000
     else:
-        inf = 40000
-        sup = 68500
+        inf = 60000
+        sup = 90000
         
     idx = data[(data['mean'] >=inf) & (data['mean']<=sup)].index
     if not list(idx):
         print('impossible de déterminer le turnoff')   
-        tt = 0
+        tt = 'undetermined'
     else : 
         xx = data['mean'][idx]
         yy = data['var'][idx]
@@ -239,117 +255,13 @@ def turnoff (data, gain) -> pd.DataFrame() :
         y = f(x)
     
         vmax_idx = np.argmax(y)
-        tt = x[vmax_idx]    
-    return tt
+        tt = x[vmax_idx]
+        # if tt < 60000:
+        #     tt = 'undetermined'
         
-# def bin_data (x, y) -> pd.DataFrame() :
-#     """
-    
-
-#     Parameters
-#     ----------
-#     x : TYPE
-#         Mean values
-#     y : TYPE
-#         Variance
-
-#     Returns
-#     -------
-#     new_data : TYPE
-#         DESCRIPTION.
-
-#     """
-#     data = pd.DataFrame({'mean':x, 'var':y})
-#     data = data.sort_values(by='mean').reset_index(drop=True)
-    
-#     #Keep the positive value 
-#     dd = data[data['mean']>0].reset_index(drop=True)
-
-#     med = np.median(data['var'])
-#     sig = 0.25
-#     dd_new= dd[dd['var'] < sig * med].reset_index(drop=True)
-
-#     n = len(dd_new['mean'])
-#     bim=[]
-#     biv=[]
-#     m=[]
-    
-#     for i in range (2,n-1,2):
-#         if dd_new['mean'][i] in m:  #vérifie que la valeur n'est pas comptée dans le bin précédent
-#             continue
-#         else:
-#             inf = dd_new['mean'][i]
-#             sup = inf+3
-#             m=[]
-#             v=[]
-#             #Regroupe des valeurs 
-#             for j in dd_new['mean']:
-#                 if inf <= j <= sup:
-#                     m.append(j)
-#                     v.append(dd_new['var'][dd_new['mean']==j].values[0])
-   
-#             #calcule la moyenne
-#             bim.append(np.mean(m))
-#             biv.append(np.mean(v))
-
-#     new_data = pd.DataFrame({'mean':bim, 'var':biv})   
-#     return new_data
-
-def bin_data (x, y) -> pd.DataFrame() :
-    """
-    
-
-    Parameters
-    ----------
-    x : TYPE
-        Mean values
-    y : TYPE
-        Variance
-
-    Returns
-    -------
-    new_data : TYPE
-        DESCRIPTION.
-
-    """
-    data = pd.DataFrame({'mean':x, 'var':y})
-    data = data.sort_values(by='mean').reset_index(drop=True)
-    
-    #Keep the positive value 
-    dd = data[data['mean']>50].reset_index(drop=True)
-
-
-    # med = np.median(data['var'])
-    # sig = 0.25
-    # dd_new= dd[dd['var'] < sig * med].reset_index(drop=True)
-    
-    dd_new = dd
-
-    n = len(dd_new['mean'])
-    bim=[]
-    biv=[]
-    m=[]
-    
-    for i in range (2,n-1,2):
-        if dd_new['mean'][i] in m:  #vérifie que la valeur n'est pas comptée dans le bin précédent
-            continue
-        else:
-            inf = dd_new['mean'][i]
-            sup = inf+3
-            m=[]
-            v=[]
-            #Regroupe des valeurs 
-            for j in dd_new['mean']:
-                if inf <= j <= sup:
-                    m.append(j)
-                    v.append(dd_new['var'][dd_new['mean']==j].values[0])
-   
-            #calcule la moyenne
-            bim.append(np.mean(m))
-            biv.append(np.mean(v))
-
-    new_data = pd.DataFrame({'mean':bim, 'var':biv})   
-    return new_data
+    return tt
+ 
+       
 
 def fit_lin_pr (data):
     """
@@ -368,24 +280,32 @@ def fit_lin_pr (data):
         Parameters of the fit (a, b)
 
     """
+    dd_new = data[data['mean']<2000].reset_index(drop=True).copy()
     sigma = 100
-    n = len(data['mean'])     
-    for j in range (2,n-1):
-       
-        popt, pcov = curve_fit(linear, data['mean'][0:j], data['var'][0:j]);
+    n = len(dd_new['mean'])    
+    #print('début = ',n)
+    if len(dd_new['var'])<10:
+        popt = 'impossible'
+    else:
+        for j in range (2,n-1):
+           
+            popt, pcov = curve_fit(linear, dd_new['mean'][0:j], dd_new['var'][0:j]);
+            
+            #Check if the next value is closed enough to the linear fit
+            if abs(linear(dd_new['mean'][j+1], *popt)-dd_new['mean'][j+1]) > 50*sigma :
+                    if abs(linear(dd_new['mean'][j+2], *popt)-dd_new['mean'][j+2]) < 50*sigma:
+                        sigma = np.sqrt(np.diag(pcov))[0]
+                        datafit = dd_new.drop(index = j+1).copy()  #delete value j+1 if >5*sigma and keep j+2 if <50*sigma
+                    else:
+                        break
+            else:
+                sigma = np.sqrt(np.diag(pcov))[0]
+                
         
-        #Check if the next value is closed enough to the linear fit
-        if abs(linear(data['mean'][j+1], *popt)-data['mean'][j+1]) > 5*sigma :
-                if abs(linear(data['mean'][j+2], *popt)-data['mean'][j+2]) < 50*sigma:
-                    sigma = pcov[0][0]
-                    data = data.drop(j+1).copy()  #delete value j+1 if >5*sigma and keep j+2 if <50*sigma
-                else:
-                    break
-        else:
-            sigma = pcov[0][0]
-
-    popt, pcov = curve_fit(linear, data['mean'], data['var']);
-    return data, popt
+        popt, pcov = curve_fit(linear, dd_new['mean'], dd_new['var']);
+        #print('fin = ', len(data))
+    
+    return dd_new, popt
  
 
 
