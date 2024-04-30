@@ -36,6 +36,7 @@ def visualizePTC (parameters, data, fitdata, run) :
     yy=100
     legend = "HDU {} \nGain quadratique = {}\nGain linéaire = {}\nTurnoff = {}"
     raft = parameters['raft'].unique()
+    data = data.reset_index(drop=True)
     sensor = parameters['sensor'].unique()
     for r in raft:
         for s in sensor:
@@ -56,6 +57,7 @@ def visualizePTC (parameters, data, fitdata, run) :
                                      (parameters['raft']==r)&
                                      (parameters['sensor']==s)].index
                     
+                    
                     mean_fit = fitdata['mean'][(fitdata['ampli']==i+1)&
                                (fitdata['raft']==r)&
                                (fitdata['sensor']==s)]
@@ -63,36 +65,47 @@ def visualizePTC (parameters, data, fitdata, run) :
                                           (fitdata['raft']==r)&
                                           (fitdata['sensor']==s)]
                     
-                    yq = parameters['param_quadra'][idx].values[0]
-                    a, b, c = yq[0], yq[1], yq[2]
                     
-                    yl = parameters['param_lin'][idx].values[0]
-                    a_lin, b_lin = yl[0], yl[1]
-                   
-                    
-                    turnoff = parameters['turnoff'][idx].values[0]
                     Qgain = parameters['gain_quadra'][idx].values[0]
                     Lgain = parameters['gain_lin'][idx].values[0]
-                    
-                    axs[irow, icol].axvline(turnoff, linestyle = '--')
+
                     axs[irow, icol].plot(mean,var,'+k')
-                    
-                    axs[irow, icol].plot(mean_fit,var_fit,'+y')
-                                                                      
-                    axs[irow, icol].plot(l,a*l**2+b*l+c, 'r')
-                    axs[irow, icol].plot(l,a_lin*l+b_lin, 'g')
-                  
-                    axs[irow,icol].text(xx,yy,legend.
-                                        format(i+1, np.round(Qgain,2), 
-                                               np.round(Lgain,2),
-                                               np.round(turnoff,4)),
-                                        fontsize=12)
+                    if Lgain == 'undetermined':
+                        continue
+                    else:
+                        turnoff = parameters['turnoff'][idx].values[0]
+                        if turnoff == 'undetermined':
+                            turnoff = 'undetermined'
+                        else:
+                            turnoff = np.round(turnoff,4)
+                            
+                        yq = parameters['param_quadra'][idx].values[0]
+                        a, b, c = yq[0], yq[1], yq[2]
+                        
+                        yl = parameters['param_lin'][idx].values[0]
+                        a_lin, b_lin = yl[0], yl[1]
+     
+                        
+                        axs[irow, icol].axvline(turnoff, linestyle = '--')
+                        
+                        
+                        axs[irow, icol].plot(mean_fit,var_fit,'+y')
+                                                                          
+                        axs[irow, icol].plot(l,a*l**2+b*l+c, 'r')
+                     
+                        axs[irow, icol].plot(l,a_lin*l+b_lin, 'g')
+                      
+                        axs[irow,icol].text(xx,yy,legend.
+                                            format(i+1, np.round(Qgain,2), 
+                                                   np.round(Lgain,2),
+                                                   turnoff), fontsize=12)
                 
                 #run = data['run'][(data['raft']==r)&(data['sensor']==s)]
                 name = 'PTC_{}_{}_{}'.format(r, s, run)
                 fig.suptitle(name)
                 fig.supxlabel('mean signal (ADU)')
                 fig.supylabel('var ($ADU^{2}$)')
-                
+                plt.show()
+                plt.close(fig)
                 fig.savefig('../fig/'+name)
     return 
