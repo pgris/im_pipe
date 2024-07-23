@@ -1,55 +1,76 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Tue Jul  2 09:58:08 2024
+Created on Fri Jul 19 11:25:36 2024
 
 @author: julie
 """
 
-import pandas as pd
-import matplotlib.pyplot as plt
 from optparse import OptionParser
-from planfocal import focalplane
+from focalplane import FocalPlanePlotter, DataProcessor, clean_data, GainStudy
 
-plt.rcParams['xtick.labelsize'] = 30
-plt.rcParams['ytick.labelsize'] = 30
-plt.rcParams['axes.labelsize'] = 30
-plt.rcParams['figure.titlesize'] = 20
-plt.rcParams['legend.fontsize'] = 30
-plt.rcParams['font.weight'] = 'bold'
-plt.rcParams['axes.labelweight'] = 'bold'
-#plt.rcParams['font.family'] = 'Arial'
-plt.rcParams['font.size'] = 20
+parser = OptionParser(description='Script to plot the focal plane')
 
-parser = OptionParser(
-    description='Script to plot the focal plane')
-
-parser.add_option('--path', type=str,
-                  default='../fit_resu/',
+parser.add_option('--path', type=str, 
+                  default='../fit_resu/', 
                   help='Path to data [%default]')
 
-parser.add_option('--filename', type=str,
-                  default='fit_resu_',
+parser.add_option('--filename', type=str, 
+                  default='fit_resu_', 
                   help='file name [%default]')
 
-parser.add_option('--num_run', type=str,
-                  default='13144',
+parser.add_option('--run', type=str, 
+                  default='13144', 
                   help='num run : [%default]')
 
-parser.add_option('--parameter', type=str,
-                  default='gain_lin',
-                  help='parameter to plot : [%default]')
+parser.add_option('--parameter', type=str, 
+                  default='gain_lin', 
+                  help='parameter to plot [%default]')
+
+parser.add_option('--faulty', type=str, 
+                  default='no', 
+                  help='Show faulty CCDs ? [%default]')
+
+parser.add_option('--suffix', type=str, 
+                  default='', 
+                  help='suffix file name : [%default]')
+
+parser.add_option('--min_value', type=float, 
+                  default=None, 
+                  help='Minimum value for parameter filtering [%default]')
+
+parser.add_option('--max_value', type=float, 
+                  default=None, 
+                  help='Maximum value for parameter filtering [%default]')
+
+parser.add_option('--color', type=str, 
+                  default='viridis', 
+                  help='Scale color [%default]')
+
+parser.add_option('--sigma', type=float, 
+                  default=3, 
+                  help='Sigma value [%default]')
+
 
 opts, args = parser.parse_args()
+opts = vars(opts)
+c = opts['color']
 
-num_run = opts.num_run
-path = opts.path
-filename = opts.filename
-param = opts.parameter
+# Process data
+processor_opts = {k: opts[k] for k in ('path', 'filename', 'run', 'suffix')}
+processor = DataProcessor(**processor_opts)
+df = processor.load_data()
 
+# Plot data
+if opts['min_value'] or opts['max_value'] != None:
+    df,_,_ = clean_data(df, opts['parameter'])
+    plotter_opts = {k: opts[k] for k in ('parameter', 'faulty', 'sigma', 'min_value', 'max_value')}
+    plotter = FocalPlanePlotter(df, **plotter_opts)
+else:    
+    df, min_value, max_value = clean_data(df, opts['parameter'])
+    plotter_opts = {k: opts[k] for k in ('parameter', 'faulty', 'sigma')}
+    plotter = FocalPlanePlotter(df, min_value, max_value, **plotter_opts)
+    
 
-Path_data = '{}{}{}.hdf5'.format(path, filename, num_run)
+plotter.focalplane(color = str(c))
 
-df = pd.read_hdf(str(Path_data))
-
-focalplane(df, param)
