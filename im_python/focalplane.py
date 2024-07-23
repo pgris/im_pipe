@@ -117,7 +117,39 @@ class FocalPlanePlotter:
     def filter_data(self):
         self.df_plot = self.df[(self.df[self.parameter] < self.max_value) & (self.df[self.parameter] > self.min_value)].copy()
     
-    
+    def bord(self, ax):
+       #vertical line
+       ax.axvline(x=0- 0.5, ymin=6/30, ymax=6*4/30, color='black', linewidth=2)  
+       ax.axvline(x=8*3 - 0.5, ymin=0, ymax=6/30, color='black', linewidth=2)  
+       ax.axvline(x=8*3 - 0.5, ymin=6*4/30, ymax=6*5/30, color='black', linewidth=2) 
+       ax.axvline(x=8*12 - 0.5, ymin=0, ymax=6/30, color='black', linewidth=2)  
+       ax.axvline(x=8*12 - 0.5, ymin=6*4/30, ymax=6*5/30, color='black', linewidth=2) 
+       ax.axvline(x=8*15 - 0.5, ymin=6/30, ymax=6*4/30, color='black', linewidth=2)  
+       ax.axvline(x=8*14 - 0.5, ymin=24/30, ymax=26/30, color='black', linewidth=2) 
+       ax.axvline(x=8*13 - 0.5, ymin=26/30, ymax=28/30, color='black', linewidth=2)
+       ax.axvline(x=8*13 - 0.5, ymin=2/30, ymax=4/30, color='black', linewidth=2) 
+       ax.axvline(x=8*14 - 0.5, ymin=4/30, ymax=6/30, color='black', linewidth=2)
+       ax.axvline(x=8 - 0.5, ymin=24/30, ymax=26/30, color='black', linewidth=2) 
+       ax.axvline(x=8*2 - 0.5, ymin=26/30, ymax=28/30, color='black', linewidth=2)
+       ax.axvline(x=8*2 - 0.5, ymin=2/30, ymax=4/30, color='black', linewidth=2) 
+       ax.axvline(x=8 - 0.5, ymin=4/30, ymax=6/30, color='black', linewidth=2)
+       #horizontal line
+       ax.axhline(y=0 - 0.5, xmin=8*3/120, xmax=8*3*4/120, color='black', linewidth=2)  
+       ax.axhline(y=6 - 0.5, xmin=0, xmax=8*3/120, color='black', linewidth=2)  
+       ax.axhline(y=6 - 0.5, xmin=8*3*4/120, xmax=8*3*5/120, color='black', linewidth=2) 
+       ax.axhline(y=24 - 0.5, xmin=0, xmax=8*3/120, color='black', linewidth=2)  
+       ax.axhline(y=24 - 0.5, xmin=8*3*4/120, xmax=8*3*5/120, color='black', linewidth=2) 
+       ax.axhline(y=30 - 0.5, xmin=8*3/120, xmax=8*3*4/120, color='black', linewidth=2) 
+       ax.axhline(y=2 - 0.5, xmin=16/120, xmax=24/120, color='black', linewidth=2) 
+       ax.axhline(y=4 - 0.5, xmin=8/120, xmax=16/120, color='black', linewidth=2) 
+       ax.axhline(y=26 - 0.5, xmin=8/120, xmax=16/120, color='black', linewidth=2)
+       ax.axhline(y=28 - 0.5, xmin=16/120, xmax=24/120, color='black', linewidth=2) 
+       
+       ax.axhline(y=2 - 0.5, xmin=24*4/120, xmax=8*13/120, color='black', linewidth=2) 
+       ax.axhline(y=4 - 0.5, xmin=8*13/120, xmax=8*14/120, color='black', linewidth=2) 
+       ax.axhline(y=26 - 0.5, xmin=8*13/120, xmax=8*14/120, color='black', linewidth=2)
+       ax.axhline(y=28 - 0.5, xmin=8*12/120, xmax=8*13/120, color='black', linewidth=2) 
+       
     
     def focalplane_faulty(self, ax):
         self.merge_columns = self.df.columns.tolist()
@@ -164,7 +196,7 @@ class FocalPlanePlotter:
         
         if self.Faulty != 'no':
             self.focalplane_faulty(ax)
-
+        self.bord(ax)
         plt.tight_layout()
         plt.show()
 
