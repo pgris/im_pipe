@@ -57,19 +57,20 @@ def DoFit (data, path, run) -> pd.DataFrame() :
         Reduced data used to do the linear fit
 
     """
-    #If there are several filters, group the data together
+    file = concatenate_data(data, path, run)
+    lineardata, quadradata, resu_fit  = fit(file)
+    return lineardata, quadradata, file, resu_fit
 
+
+def concatenate_data(data, path, run):
+    #If there are several filters, group the data together
+    #for example empty and ND
     if len(data)==1:
         file = pd.read_hdf(path+data[0])
     elif len(data)==2:
         file = pd.concat((pd.read_hdf(path+data[0]),pd.read_hdf(path+data[1])))
     else : 
         return
-    resu_fit, new_data_lin  = fit(file, run)
-    return resu_fit, new_data_lin, file
-
-
-
-
+    return file
 
 
