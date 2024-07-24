@@ -7,9 +7,10 @@ Created on Wed Apr  3 09:38:13 2024
 """
 import os
 import pandas as pd
-from fit import  fit
+from fit import fit
 
-def GetRunNumber (path) -> pd.DataFrame() :
+
+def GetRunNumber(path) -> pd.DataFrame():
     """
     Get the list of run number in 'ptc_resu' and the filter
 
@@ -24,14 +25,15 @@ def GetRunNumber (path) -> pd.DataFrame() :
         list of all the run (file_name, run, filter)
 
     """
-    file = os.listdir(path)  #list the file in the folder
+    file = os.listdir(path)  # list the file in the folder
     run = pd.DataFrame(file, columns=['FileName'])
     run['run'] = run['FileName'].str.split('_').str.get(1)
-    run['filter'] = run['FileName'].str.split('_').str.get(3).str.split('.').str.get(0)
+    run['filter'] = run['FileName'].str.split(
+        '_').str.get(3).str.split('.').str.get(0)
     return run
 
 
-def DoFit (data, path, run) -> pd.DataFrame() :
+def DoFit_deprecated(data, path, run) -> pd.DataFrame():
     """
     Process the fit 
 
@@ -58,19 +60,27 @@ def DoFit (data, path, run) -> pd.DataFrame() :
 
     """
     file = concatenate_data(data, path, run)
-    lineardata, quadradata, resu_fit  = fit(file)
+    lineardata, quadradata, resu_fit = fit(file)
     return lineardata, quadradata, file, resu_fit
 
 
+def do_fit(files) -> pd.DataFrame:
+
+    data = pd.DataFrame()
+    for fi in files:
+        data = pd.concat((data, pd.read_hdf(fi)))
+    lineardata, quadradata, resu_fit = fit(data)
+    return lineardata, quadradata, data, resu_fit
+
+
 def concatenate_data(data, path, run):
-    #If there are several filters, group the data together
-    #for example empty and ND
-    if len(data)==1:
+    # If there are several filters, group the data together
+    # for example empty and ND
+    if len(data) == 1:
         file = pd.read_hdf(path+data[0])
-    elif len(data)==2:
-        file = pd.concat((pd.read_hdf(path+data[0]),pd.read_hdf(path+data[1])))
-    else : 
+    elif len(data) == 2:
+        file = pd.concat(
+            (pd.read_hdf(path+data[0]), pd.read_hdf(path+data[1])))
+    else:
         return
     return file
-
-
