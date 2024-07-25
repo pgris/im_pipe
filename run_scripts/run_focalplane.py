@@ -7,7 +7,7 @@ Created on Fri Jul 19 11:25:36 2024
 """
 
 from optparse import OptionParser
-from focalplane import FocalPlanePlotter, DataProcessor, clean_data, GainStudy
+from focalplane import FocalPlanePlotter, DataProcessor,  GainStudy
 
 parser = OptionParser(description='Script to plot the focal plane')
 
@@ -62,15 +62,10 @@ processor = DataProcessor(**processor_opts)
 df = processor.load_data()
 
 # Plot data
-if opts['min_value'] or opts['max_value'] != None:
-    df,_,_ = clean_data(df, opts['parameter'])
-    plotter_opts = {k: opts[k] for k in ('parameter', 'faulty', 'sigma', 'min_value', 'max_value')}
-    plotter = FocalPlanePlotter(df, **plotter_opts)
-else:    
-    df, min_value, max_value = clean_data(df, opts['parameter'])
-    plotter_opts = {k: opts[k] for k in ('parameter', 'faulty', 'sigma')}
-    plotter = FocalPlanePlotter(df, min_value, max_value, **plotter_opts)
-    
+
+plotter_opts = {k: opts[k] for k in ('parameter',  'sigma', 'faulty', 'min_value', 'max_value')}
+plotter = FocalPlanePlotter(df, **plotter_opts)
+
 
 plotter.focalplane(color = str(c))
 
